@@ -1,0 +1,178 @@
+@import 'tailwindcss';
+@import '@fontsource/bebas-neue/latin-400.css';
+@import '@fontsource-variable/inter/wght.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+/* -------------------------------------------------------------------------
+ * BIN MALIK FITNESS — Design tokens (see docs/design-system.md)
+ * ---------------------------------------------------------------------- */
+:root {
+    --brand-black: #0b0b0c;
+    --brand-charcoal: #1a1a1d;
+    --brand-gold: #f2b705;
+    --brand-ivory: #f5f5f4;
+    --brand-silver: #b4b4bb;
+    --shop-background: #f7f5f0;
+    --shop-text: #1f1f22;
+    --gold-dark: #7a5c00;
+    --success: #15803d;
+    --danger: #dc2626;
+    --danger-on-dark: #f87171;
+
+    --section-y: clamp(4rem, 9vw, 8rem);
+    --header-h: 4.5rem;
+}
+
+@theme {
+    --color-ink: var(--brand-black);
+    --color-charcoal: var(--brand-charcoal);
+    --color-charcoal-2: #232327;
+    --color-gold: var(--brand-gold);
+    --color-gold-dark: var(--gold-dark);
+    --color-ivory: var(--brand-ivory);
+    --color-silver: var(--brand-silver);
+    --color-paper: var(--shop-background);
+    --color-paper-2: #efebe3;
+    --color-graphite: var(--shop-text);
+    --color-success: var(--success);
+    --color-danger: var(--danger);
+    --color-danger-on-dark: var(--danger-on-dark);
+
+    --font-display: 'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+    --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+
+    --text-display-xl: clamp(3.5rem, 9vw, 8rem);
+    --text-display-xl--line-height: 0.88;
+    --text-display-l: clamp(2.5rem, 5.5vw, 4.5rem);
+    --text-display-l--line-height: 0.95;
+    --text-display-m: clamp(1.75rem, 2.6vw, 2.25rem);
+    --text-display-m--line-height: 1;
+
+    --tracking-eyebrow: 0.18em;
+}
+
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-rendering: optimizeLegibility;
+        scroll-padding-top: calc(var(--header-h) + 1rem);
+    }
+
+    body {
+        @apply bg-ink font-sans text-ivory antialiased;
+    }
+
+    h1, h2, h3, h4 {
+        text-wrap: balance;
+    }
+
+    p {
+        text-wrap: pretty;
+    }
+
+    /* Visible keyboard focus on every surface */
+    :focus-visible {
+        outline: 2px solid var(--brand-gold);
+        outline-offset: 2px;
+    }
+
+    .surface-paper :focus-visible,
+    .surface-light :focus-visible {
+        outline-color: var(--shop-text);
+        box-shadow: 0 0 0 4px rgb(122 92 0 / 0.35);
+    }
+
+    [x-cloak] {
+        display: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}
+
+@layer components {
+    .container-site {
+        @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10;
+    }
+
+    .section-y {
+        padding-block: var(--section-y);
+    }
+
+    .surface-dark {
+        @apply bg-ink text-ivory;
+    }
+
+    .surface-charcoal {
+        @apply bg-charcoal text-ivory;
+    }
+
+    .surface-paper {
+        @apply bg-paper text-graphite;
+    }
+
+    .surface-light {
+        @apply bg-white text-graphite;
+    }
+
+    .display-xl {
+        @apply font-display text-display-xl uppercase;
+        letter-spacing: 0.005em;
+    }
+
+    .display-l {
+        @apply font-display text-display-l uppercase;
+        letter-spacing: 0.01em;
+    }
+
+    .display-m {
+        @apply font-display text-display-m uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .eyebrow {
+        @apply text-xs font-semibold uppercase;
+        letter-spacing: var(--tracking-eyebrow);
+    }
+
+    .rule-gold {
+        @apply block h-0.5 w-10 bg-gold;
+    }
+
+    /* Form controls (light surfaces) */
+    .field-input {
+        @apply block w-full rounded-xs border border-graphite/20 bg-white px-3.5 py-2.5 text-sm text-graphite placeholder:text-graphite/45 focus:border-graphite focus:ring-2 focus:ring-gold-dark/40 focus:outline-none;
+    }
+
+    .field-input-dark {
+        @apply block w-full rounded-xs border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm text-ivory placeholder:text-silver/70 focus:border-gold focus:ring-2 focus:ring-gold/40 focus:outline-none;
+    }
+
+    .field-label {
+        @apply mb-1.5 block text-sm font-medium;
+    }
+
+    .prose-brand {
+        @apply space-y-4 leading-relaxed;
+    }
+
+    .btn-light-primary {
+        @apply inline-flex items-center justify-center bg-charcoal text-gold font-bold uppercase tracking-wider transition hover:bg-ink;
+    }
+}
