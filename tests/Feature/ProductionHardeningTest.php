@@ -6,6 +6,7 @@ use App\Domain\Identity\TwoFactorTotpService;
 use App\Enums\OrderStatus;
 use App\Models\CoachAssignment;
 use App\Models\CoachingCheckIn;
+use App\Models\ConsentRecord;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Setting;
@@ -241,6 +242,20 @@ class ProductionHardeningTest extends TestCase
 
         $this->assertSame(CoachAssignment::STATUS_APPROVED, $assignment->fresh()->status);
         $this->assertTrue($coach->fresh()->isAssignedToClient($client->id));
+    }
+
+    public function test_updating_a_row_does_not_overwrite_event_timestamps(): void
+    {
+        $consent = ConsentRecord::create([
+            'user_id' => $this->user('customer.demo@binmalikfitness.test')->id,
+            'type' => 'marketing',
+            'granted_at' => now()->subDays(10)->startOfSecond(),
+        ]);
+        $grantedAt = $consent->fresh()->granted_at->toDateTimeString();
+
+        $consent->update(['withdrawn_at' => now()]);
+
+        $this->assertSame($grantedAt, $consent->fresh()->granted_at->toDateTimeString());
     }
 
     public function test_health_notes_are_encrypted_at_rest(): void
