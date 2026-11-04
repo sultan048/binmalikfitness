@@ -8,6 +8,8 @@ use App\Domain\Commerce\OrderFulfilmentService;
 use App\Domain\Commerce\PricingService;
 use App\Domain\Payments\PaymentService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PaymentProofRequest;
+use App\Http\Requests\PlaceOrderRequest;
 use App\Models\Brand;
 use App\Models\Order;
 use App\Models\Product;
@@ -18,8 +20,10 @@ use App\Models\Setting;
 use App\Models\StockAlert;
 use App\Models\WishlistItem;
 use App\Support\Money;
+use App\Support\OrderAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CommerceController extends Controller
@@ -103,7 +107,7 @@ class CommerceController extends Controller
             $query->orderByDesc('is_bestseller')->orderByDesc('is_featured')->orderBy('id');
         }
 
-        $products = $query->get();
+        $products = $query->paginate(24)->withQueryString();
 
         $wishlistedIds = $this->resolveWishlistProductIds($request);
         $recentlyViewedIds = (array) $request->session()->get('recently_viewed_product_ids', []);
@@ -268,43 +272,26 @@ class CommerceController extends Controller
         return back()->with('status', 'Coupon removed from cart.');
     }
 
-    public function placeOrder(Request $request): RedirectResponse
+    public function placeOrder(PlaceOrderRequest $request): RedirectResponse
     {
-        $rules = [
-            '_idempotency_key' => ['nullable', 'string', 'max:100'],
-            'customer_name' => ['required', 'string', 'max:120'],
-            'customer_email' => ['required', 'string', 'email', 'max:190'],
-            'customer_phone' => ['required', 'string', 'max:32'],
-            'saved_address_id' => ['nullable', 'integer'],
-            'shipping_method' => ['required', 'string', 'in:standard_courier,express_city'],
-            'payment_method' => ['required', 'string', 'in:cod,bank_transfer,online_gateway'],
-            'customer_notes' => ['nullable', 'string', 'max:500'],
-            'save_address' => ['nullable', 'boolean'],
-        ];
-
-        if (! $request->filled('saved_address_id')) {
-            $rules['line1'] = ['required', 'string', 'max:190'];
-            $rules['area'] = ['nullable', 'string', 'max:120'];
-            $rules['city'] = ['required', 'string', 'max:80'];
-            $rules['province'] = ['required', 'string', 'max:80'];
-            $rules['postal_code'] = ['nullable', 'string', 'max:20'];
-        }
-
-        $validated = $request->validate($rules);
+        $validated = $request->validated();
         $validated['idempotency_key'] = $validated['_idempotency_key'] ?? $request->header('Idempotency-Key');
 
         $cart = $this->carts->resolveCart($request, true);
         $order = $this->checkout->placeOrder($cart, $validated, $request->user());
+        OrderAccess::grant($request, $order);
 
-        return redirect()->route('orders.confirmation', [
-            'orderNumber' => $order->order_number,
-            'token' => $order->access_token,
-        ])->with('status', "Order {$order->order_number} placed. Please review your payment and delivery details below.");
+        return redirect()->route('orders.confirmation', ['orderNumber' => $order->order_number])
+            ->with('status', "Order {$order->order_number} placed. Please review your payment and delivery details below.");
     }
 
-    public function orderConfirmation(Request $request, string $orderNumber): View
+    public function orderConfirmation(Request $request, string $orderNumber): View|RedirectResponse
     {
         $order = $this->resolveAuthorizedOrder($request, $orderNumber);
+
+        if ($redirect = $this->redirectWithoutToken($request)) {
+            return $redirect;
+        }
 
         $bankSettings = Setting::whereIn('key', [
             'payment.bank_name',
@@ -315,9 +302,13 @@ class CommerceController extends Controller
         return view('public.order-confirmation', compact('order', 'bankSettings'));
     }
 
-    public function orderInvoice(Request $request, string $orderNumber): View
+    public function orderInvoice(Request $request, string $orderNumber): View|RedirectResponse
     {
         $order = $this->resolveAuthorizedOrder($request, $orderNumber);
+
+        if ($redirect = $this->redirectWithoutToken($request)) {
+            return $redirect;
+        }
 
         $brandSettings = Setting::whereIn('key', [
             'brand.name',
@@ -350,6 +341,7 @@ class CommerceController extends Controller
                 ($contact !== '' && (strtolower($candidate->customer_email) === $contact || $candidate->customer_phone === $contact))
             ) {
                 $order = $candidate;
+                OrderAccess::grant($request, $order);
             } else {
                 $lookupError = 'Order number and customer email/phone did not match our records.';
             }
@@ -358,23 +350,21 @@ class CommerceController extends Controller
         return view('public.order-track', compact('order', 'lookupError'));
     }
 
-    public function submitPaymentProof(Request $request, string $orderNumber): RedirectResponse
+    public function submitPaymentProof(PaymentProofRequest $request, string $orderNumber): RedirectResponse
     {
         $order = $this->resolveAuthorizedOrder($request, $orderNumber);
+        $validated = $request->validated();
 
-        $validated = $request->validate([
-            'transaction_reference' => ['required', 'string', 'max:120'],
-            'sender_bank_name' => ['required', 'string', 'max:120'],
-            'sender_account_last4' => ['nullable', 'string', 'max:16'],
-            'receipt_file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
-        ]);
-
-        $this->payments->submitBankTransferProof(
-            $order,
-            $validated,
-            $request->file('receipt_file'),
-            $request->user()
-        );
+        try {
+            $this->payments->submitBankTransferProof(
+                $order,
+                $validated,
+                $request->file('receipt_file'),
+                $request->user()
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['receipt_file' => $e->getMessage()]);
+        }
 
         return back()->with(
             'status',
@@ -511,8 +501,14 @@ class CommerceController extends Controller
             ->where('order_number', $orderNumber)
             ->firstOrFail();
 
-        $token = (string) ($request->query('token') ?? $request->input('token', ''));
-        if ($token !== '' && hash_equals($order->access_token, $token)) {
+        if (OrderAccess::has($request, $order)) {
+            return $order;
+        }
+
+        // Legacy ?token= links: accept once, then remember access in the session
+        if (OrderAccess::tokenMatches($request, $order)) {
+            OrderAccess::grant($request, $order);
+
             return $order;
         }
 
@@ -521,6 +517,18 @@ class CommerceController extends Controller
         }
 
         abort(403, 'You are not authorized to access this order.');
+    }
+
+    /**
+     * After a legacy token link is accepted, reload the page without the token in the URL.
+     */
+    private function redirectWithoutToken(Request $request): ?RedirectResponse
+    {
+        if (! $request->query->has('token')) {
+            return null;
+        }
+
+        return redirect()->to($request->fullUrlWithoutQuery(['token']));
     }
 
     private function resolveWishlistProductIds(Request $request): array
@@ -539,7 +547,7 @@ class CommerceController extends Controller
     {
         $token = (string) $request->session()->get('bmf_cart_token', '');
         if ($token === '') {
-            $token = \Illuminate\Support\Str::uuid()->toString();
+            $token = Str::uuid()->toString();
             $request->session()->put('bmf_cart_token', $token);
         }
 

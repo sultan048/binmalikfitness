@@ -1,8 +1,9 @@
 # LOCAL DEVELOPMENT SAFEGUARD
 # This project lives inside XAMPP's htdocs. Apache must never serve the
 # project root (it would expose .env, source code and storage).
-# Serve the app with the PHP built-in server instead (see README):
-#   php -S 127.0.0.1:8000 -t public server.php
+# Serve only public/, either with PHP's built-in server:
+#   php -S 127.0.0.1:8000 -t public
+# or through the dedicated vhost in deploy/xampp/httpd-binmalikfitness.conf.
 # In production the domain document root points to /public only.
 <IfModule mod_authz_core.c>
     Require all denied

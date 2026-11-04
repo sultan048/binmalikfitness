@@ -8,16 +8,33 @@ use App\Support\Money;
 
 class PricingService
 {
+    // Defaults; the live values come from config/commerce.php
     public const FREE_SHIPPING_THRESHOLD_PAISA = 1000000; // PKR 10,000
+
     public const STANDARD_SHIPPING_PAISA = 35000;        // PKR 350
+
     public const EXPRESS_SHIPPING_PAISA = 65000;         // PKR 650
 
     /**
-     * Recomputes all cart line prices, coupon discounts, shipping, and totals on the server.
-     * Client-submitted prices or totals are never trusted.
+     * Standard-courier price for a delivery city (config commerce.shipping.city_rates), or the default.
      */
-    public function calculateCartTotals(Cart $cart, ?string $shippingMethodOverride = null): array
+    public function standardShippingFor(?string $city): int
     {
+        $rates = array_change_key_case((array) config('commerce.shipping.city_rates', []), CASE_LOWER);
+        $key = strtolower(trim((string) $city));
+
+        return (int) ($rates[$key] ?? config('commerce.shipping.standard_paisa', self::STANDARD_SHIPPING_PAISA));
+    }
+
+    /**
+     * Recomputes all cart line prices, coupon discounts, shipping, and totals on the server.
+     * Client-submitted prices or totals are never trusted. Pass the delivery city once it is
+     * known (checkout) to apply city-based courier rates.
+     */
+    public function calculateCartTotals(Cart $cart, ?string $shippingMethodOverride = null, ?string $city = null): array
+    {
+        $freeThreshold = (int) config('commerce.shipping.free_threshold_paisa', self::FREE_SHIPPING_THRESHOLD_PAISA);
+
         $cart->loadMissing(['items.product', 'items.variant', 'coupon']);
 
         $shippingMethod = $shippingMethodOverride ?: ($cart->shipping_method ?: 'standard_courier');
@@ -71,11 +88,11 @@ class PricingService
         $shippingPaisa = 0;
         if ($subtotalPaisa > 0) {
             if ($shippingMethod === 'express_city') {
-                $shippingPaisa = self::EXPRESS_SHIPPING_PAISA;
+                $shippingPaisa = (int) config('commerce.shipping.express_paisa', self::EXPRESS_SHIPPING_PAISA);
             } else {
-                $shippingPaisa = $netAfterDiscount >= self::FREE_SHIPPING_THRESHOLD_PAISA
+                $shippingPaisa = $netAfterDiscount >= $freeThreshold
                     ? 0
-                    : self::STANDARD_SHIPPING_PAISA;
+                    : $this->standardShippingFor($city);
             }
         }
 
@@ -96,8 +113,8 @@ class PricingService
             'total_paisa' => $totalPaisa,
             'total_formatted' => Money::format($totalPaisa),
             'coupon_code_snapshot' => $couponCodeSnapshot,
-            'free_shipping_threshold_paisa' => self::FREE_SHIPPING_THRESHOLD_PAISA,
-            'amount_to_free_shipping_paisa' => max(0, self::FREE_SHIPPING_THRESHOLD_PAISA - $netAfterDiscount),
+            'free_shipping_threshold_paisa' => $freeThreshold,
+            'amount_to_free_shipping_paisa' => max(0, $freeThreshold - $netAfterDiscount),
             'total_weight_grams' => $totalWeightGrams,
             'item_count' => collect($lines)->sum('quantity'),
             'lines' => $lines,

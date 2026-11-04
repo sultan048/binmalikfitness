@@ -62,6 +62,7 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isAssignedToClient(int $clientId): bool
     {
         return $this->coachAssignmentsAsCoach()
+            ->approved()
             ->where('client_id', $clientId)
             ->where('starts_at', '<=', now())
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>=', now()))

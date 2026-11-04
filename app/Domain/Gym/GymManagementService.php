@@ -45,7 +45,7 @@ class GymManagementService
         return DB::transaction(function () use ($user, $plan, $paymentMethod, $isRenewal): Order {
             $registrationFee = $isRenewal ? 0 : (int) $plan->registration_fee;
             $subtotal = (int) $plan->price + $registrationFee;
-            $orderNumber = 'BMF-GYM-'.now()->format('ymd').'-'.strtoupper(Str::random(5));
+            $orderNumber = Order::generateNumber('BMF-GYM');
 
             $order = Order::create([
                 'order_number' => $orderNumber,

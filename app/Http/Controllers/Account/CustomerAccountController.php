@@ -8,6 +8,7 @@ use App\Domain\Media\PrivateFileService;
 use App\Domain\Platform\AuditLogger;
 use App\Domain\Platform\EntitlementService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateProfileRequest;
 use App\Models\Address;
 use App\Models\CoachingCheckIn;
 use App\Models\CoachingConsultation;
@@ -31,6 +32,7 @@ use App\Models\SupportTicket;
 use App\Models\Video;
 use App\Models\WishlistItem;
 use App\Models\WorkoutAssignment;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -39,6 +41,7 @@ use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerAccountController extends Controller
 {
@@ -156,18 +159,51 @@ class CustomerAccountController extends Controller
         ]);
     }
 
-    public function updateProfile(Request $request): RedirectResponse
+    /**
+     * Customer's own order history as CSV (opens in Excel / Google Sheets).
+     */
+    public function exportOrders(Request $request): StreamedResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'phone' => ['required', 'string', 'max:32', 'regex:/^[0-9+\-\s()]{10,20}$/'],
-            'fitness_goal' => ['required', 'string', 'max:64'],
-            'height_cm' => ['nullable', 'integer', 'min:100', 'max:250'],
-            'weight_kg' => ['nullable', 'numeric', 'min:30', 'max:300'],
-            'activity_level' => ['nullable', 'string', 'max:64'],
-            'experience_level' => ['nullable', 'string', 'max:64'],
-            'equipment_access' => ['nullable', 'string', 'max:64'],
-        ]);
+        $user = $request->user();
+        $filename = 'binmalikfitness-orders-'.now()->format('Y-m-d').'.csv';
+
+        $this->audit->record('account.orders.exported', $user, null, null, $user);
+
+        return response()->streamDownload(function () use ($user) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel shows Urdu/PKR text correctly
+            fputcsv($out, ['Order number', 'Placed at', 'Status', 'Payment method', 'Payment status', 'Items', 'Subtotal (PKR)', 'Discount (PKR)', 'Shipping (PKR)', 'Total (PKR)', 'Refunded (PKR)', 'Courier', 'Tracking number']);
+
+            Order::with('items')
+                ->where('user_id', $user->id)
+                ->orderByDesc('placed_at')
+                ->chunk(200, function ($orders) use ($out) {
+                    foreach ($orders as $order) {
+                        fputcsv($out, [
+                            $order->order_number,
+                            $order->placed_at?->format('Y-m-d H:i'),
+                            $order->status,
+                            $order->payment_method,
+                            $order->payment_status,
+                            $order->items->map(fn ($i) => $i->product_name_snapshot.' x'.$i->quantity)->implode('; '),
+                            Money::toRupees($order->subtotal_paisa),
+                            Money::toRupees($order->discount_paisa),
+                            Money::toRupees($order->shipping_paisa),
+                            Money::toRupees($order->total_paisa),
+                            Money::toRupees($order->refunded_paisa),
+                            $order->courier_name,
+                            $order->tracking_number,
+                        ]);
+                    }
+                });
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+    }
+
+    public function updateProfile(UpdateProfileRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
 
         $user = $request->user();
         $user->update([

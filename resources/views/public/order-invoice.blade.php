@@ -115,14 +115,14 @@
 
                 <div class="flex flex-wrap items-center justify-between gap-4 border-t border-graphite/10 pt-6 text-xs">
                     <a
-                        href="{{ route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token]) }}"
+                        href="{{ route('orders.confirmation', ['orderNumber' => $order->order_number]) }}"
                         class="font-bold uppercase tracking-wider text-gold-dark hover:underline"
                     >
                         ← Back to Order Summary
                     </a>
                     <button
                         type="button"
-                        onclick="window.print()"
+                        data-print
                         class="btn-primary-light px-4 py-2 text-xs cursor-pointer"
                     >
                         Print / Save PDF Invoice

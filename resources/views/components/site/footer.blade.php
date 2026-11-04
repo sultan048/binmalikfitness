@@ -43,9 +43,17 @@
                 <ul class="mt-4 space-y-2.5 text-sm">
                     <li><a href="{{ route('login') }}" class="hover:text-ivory">Member Login / Register</a></li>
                     <li><a href="{{ route('account.dashboard') }}" class="hover:text-ivory">Customer Dashboard</a></li>
-                    <li><a href="{{ route('manage.manager') }}" class="hover:text-ivory">Manager Operations View</a></li>
-                    <li><a href="{{ route('manage.admin') }}" class="hover:text-ivory">Admin Control View</a></li>
-                    <li><a href="{{ route('design.system') }}" class="hover:text-ivory">Brand Design System</a></li>
+                    @auth
+                        @if (auth()->user()->hasAnyRole(['manager', 'coach', 'admin']))
+                            <li><a href="{{ route('manage.manager') }}" class="hover:text-ivory">Manager Operations View</a></li>
+                        @endif
+                        @if (auth()->user()->hasRole('admin'))
+                            <li><a href="{{ route('manage.admin') }}" class="hover:text-ivory">Admin Control View</a></li>
+                        @endif
+                    @endauth
+                    @if (\App\Support\Demo::enabled())
+                        <li><a href="{{ route('design.system') }}" class="hover:text-ivory">Brand Design System</a></li>
+                    @endif
                 </ul>
             </div>
         </div>

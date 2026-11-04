@@ -4,9 +4,12 @@ namespace App\Domain\Commerce;
 
 use App\Domain\Inventory\InventoryService;
 use App\Domain\Platform\AuditLogger;
+use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
 use App\Models\User;
+use App\Notifications\OrderUpdateNotification;
+use App\Support\OrderNotifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +28,15 @@ class OrderFulfilmentService
 
             if ($previousStatus === $nextStatus) {
                 return $locked;
+            }
+
+            // Single source of truth for which status changes are allowed
+            $from = OrderStatus::tryFrom((string) $previousStatus);
+            $to = OrderStatus::tryFrom($nextStatus);
+            if (! $from || ! $to || ! $from->canTransitionTo($to)) {
+                throw ValidationException::withMessages([
+                    'status' => ["Order cannot transition from {$previousStatus} to {$nextStatus}."],
+                ]);
             }
 
             if ($nextStatus === Order::STATUS_SHIPPED) {
@@ -114,6 +126,12 @@ class OrderFulfilmentService
                 $locked->update(['status' => $nextStatus]);
             }
 
+            if (in_array($locked->status, [Order::STATUS_SHIPPED, Order::STATUS_CANCELLED], true)) {
+                OrderNotifier::send($locked, $locked->status === Order::STATUS_SHIPPED
+                    ? OrderUpdateNotification::EVENT_SHIPPED
+                    : OrderUpdateNotification::EVENT_CANCELLED);
+            }
+
             $this->audit->record(
                 'commerce.order.status_updated',
                 $locked,
@@ -155,6 +173,8 @@ class OrderFulfilmentService
                 'cancellation_reason' => $reason,
                 'cancelled_at' => now(),
             ]);
+
+            OrderNotifier::send($locked, OrderUpdateNotification::EVENT_CANCELLED);
 
             $this->audit->record(
                 'commerce.order.cancelled_by_customer',

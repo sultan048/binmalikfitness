@@ -8,22 +8,32 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CoachingIntake extends Model
 {
     public const STATUS_PENDING_REVIEW = 'pending_review';
+
     public const STATUS_FLAGGED_MEDICAL = 'flagged_medical';
+
     public const STATUS_CLEARED = 'cleared';
+
     public const STATUS_PLAN_DELIVERED = 'plan_delivered';
 
     protected $guarded = ['id'];
 
     protected $hidden = [
         'health_notes_encrypted',
+        'allergies',
+        'dietary_restrictions',
+        'reviewer_notes',
     ];
 
     protected function casts(): array
     {
+        // Health data is encrypted at rest with APP_KEY (back up APP_KEY: without it these fields cannot be read)
         return [
             'weight_kg' => 'float',
             'health_consent_granted' => 'boolean',
             'health_notes_encrypted' => 'encrypted',
+            'allergies' => 'encrypted',
+            'dietary_restrictions' => 'encrypted',
+            'reviewer_notes' => 'encrypted',
             'needs_professional_review' => 'boolean',
             'reviewed_at' => 'datetime',
         ];

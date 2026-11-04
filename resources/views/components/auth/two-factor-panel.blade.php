@@ -21,27 +21,46 @@
         </div>
 
         @if ($user->hasTwoFactorEnabled())
-            <div class="rounded-xs border border-graphite/12 bg-paper p-4 text-xs space-y-2">
-                <p class="font-semibold text-graphite">Recovery Codes ({{ count($user->two_factor_recovery_codes ?? []) }} remaining):</p>
-                <div class="flex flex-wrap gap-2 font-mono text-[11px]">
-                    @foreach ($user->two_factor_recovery_codes ?? [] as $rc)
-                        <span class="rounded-xs border border-graphite/15 bg-white px-2 py-0.5">{{ $rc }}</span>
-                    @endforeach
+            @if (session('two_factor_recovery_codes'))
+                {{-- Shown exactly once: right after activation or regeneration --}}
+                <div role="alert" class="rounded-xs border border-gold-dark/50 bg-paper p-4 text-xs space-y-2">
+                    <p class="font-bold uppercase text-gold-dark">Save these recovery codes now — they will not be shown again</p>
+                    <p class="text-graphite/75">Each code works once if you lose access to your authenticator app. Store them in a password manager or print them.</p>
+                    <div class="flex flex-wrap gap-2 font-mono text-[11px]">
+                        @foreach (session('two_factor_recovery_codes') as $rc)
+                            <span class="rounded-xs border border-graphite/15 bg-white px-2 py-0.5">{{ $rc }}</span>
+                        @endforeach
+                    </div>
                 </div>
+            @else
+                <p class="rounded-xs border border-graphite/12 bg-paper p-4 text-xs text-graphite">
+                    <strong>{{ count($user->two_factor_recovery_codes ?? []) }}</strong> unused recovery code(s) remaining.
+                    Codes are only shown when generated; regenerate them below if you have lost them.
+                </p>
+            @endif
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <form method="POST" action="{{ route('two-factor.recovery-codes') }}" class="flex flex-wrap items-end gap-3">
+                    @csrf
+                    <div>
+                        <label for="regen-2fa-pass" class="field-label text-xs">Confirm Password to Regenerate Codes</label>
+                        <input id="regen-2fa-pass" type="password" name="current_password" class="field-input" autocomplete="current-password" required />
+                    </div>
+                    <x-ui.button type="submit" variant="graphite" size="sm">New Recovery Codes</x-ui.button>
+                </form>
+                <form method="POST" action="{{ route('two-factor.disable') }}" class="flex flex-wrap items-end gap-3">
+                    @csrf
+                    <div>
+                        <label for="disable-2fa-pass" class="field-label text-xs">Confirm Password to Disable 2FA</label>
+                        <input id="disable-2fa-pass" type="password" name="current_password" class="field-input" autocomplete="current-password" required />
+                    </div>
+                    <x-ui.button type="submit" variant="outline-dark" size="sm">Disable 2FA</x-ui.button>
+                </form>
             </div>
-            <form method="POST" action="{{ route('two-factor.disable') }}" class="flex flex-wrap items-end gap-3">
-                @csrf
-                <div>
-                    <label for="disable-2fa-pass" class="field-label text-xs">Confirm Password to Disable 2FA</label>
-                    <input id="disable-2fa-pass" type="password" name="current_password" class="field-input" required />
-                </div>
-                <x-ui.button type="submit" variant="outline-dark" size="sm">Disable 2FA</x-ui.button>
-            </form>
         @elseif ($unconfirmedSecret)
             <div class="rounded-xs border border-gold-dark/40 bg-paper p-4 text-xs space-y-2">
                 <p class="font-bold text-gold-dark uppercase">Step 1: Add Secret to Authenticator App</p>
                 <p class="font-mono text-sm font-bold text-graphite">{{ $unconfirmedSecret }}</p>
-                @if (! app()->isProduction())
+                @if (\App\Support\Demo::enabled())
                     <p class="text-[11px] text-graphite/75">
                         Local testing helper — current 30s TOTP code: <code class="font-mono font-bold text-gold-dark">{{ $totp->currentCode($unconfirmedSecret) }}</code>
                     </p>

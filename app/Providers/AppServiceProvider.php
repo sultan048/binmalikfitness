@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Domain\Payments\Contracts\PaymentGatewayInterface;
 use App\Domain\Payments\NullPaymentGateway;
+use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -21,6 +23,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $proxies = config('app.trusted_proxies');
+        if ($proxies) {
+            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
+        Paginator::defaultView('components.ui.pagination');
+        Paginator::defaultSimpleView('components.ui.pagination');
     }
 }

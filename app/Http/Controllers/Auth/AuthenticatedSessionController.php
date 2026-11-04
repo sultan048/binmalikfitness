@@ -6,6 +6,7 @@ use App\Domain\Identity\RolePermissionMatrix;
 use App\Domain\Platform\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Demo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -53,9 +54,9 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
-        if (app()->isProduction() && $user->is_demo) {
+        if ($user->is_demo && ! Demo::enabled()) {
             $this->audit->record('security.demo_account.blocked_in_production', $user, null, null, $user);
-            abort(403, 'Demonstration accounts cannot authenticate in production.');
+            abort(403, 'Demonstration accounts cannot authenticate when demo mode is off.');
         }
 
         if (! $user->isActive()) {
@@ -87,8 +88,8 @@ class AuthenticatedSessionController extends Controller
 
     public function demoSwitch(Request $request): RedirectResponse
     {
-        if (app()->isProduction()) {
-            abort(403, 'Demo role switching is disabled in production.');
+        if (! Demo::enabled()) {
+            abort(403, 'Demo role switching is disabled.');
         }
 
         $validated = $request->validate([
@@ -112,7 +113,7 @@ class AuthenticatedSessionController extends Controller
         $this->audit->record('auth.demo_switch.used', $user, null, ['role' => $validated['role']], $user);
 
         return redirect()->to($this->defaultDashboardRoute($user))
-            ->with('status', "Switched to demonstration role: ".strtoupper($validated['role']));
+            ->with('status', 'Switched to demonstration role: '.strtoupper($validated['role']));
     }
 
     public function logout(Request $request): RedirectResponse

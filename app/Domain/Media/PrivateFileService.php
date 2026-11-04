@@ -27,6 +27,11 @@ class PrivateFileService
         'pdf' => ['application/pdf'],
     ];
 
+    /**
+     * Hard upper limit enforced here, regardless of controller validation.
+     */
+    public const MAX_BYTES = 10 * 1024 * 1024;
+
     public function __construct(
         private readonly AuditLogger $audit,
     ) {}
@@ -46,6 +51,15 @@ class PrivateFileService
 
         if (! isset(self::ALLOWED_TYPES[$ext]) || ! in_array($mime, self::ALLOWED_TYPES[$ext], true)) {
             throw new InvalidArgumentException('Unsupported or unsafe file type.');
+        }
+
+        if (! $file->isValid() || (int) $file->getSize() <= 0 || (int) $file->getSize() > self::MAX_BYTES) {
+            throw new InvalidArgumentException('File is empty or larger than '.(self::MAX_BYTES / 1024 / 1024).' MB.');
+        }
+
+        // Images are decoded and re-encoded: strips EXIF/GPS metadata and anything appended to the pixels
+        if (str_starts_with($mime, 'image/')) {
+            $this->reencodeImage($file->getRealPath(), $mime);
         }
 
         return DB::transaction(function () use ($uploader, $owner, $file, $category, $isConfidentialHealth, $consentType, $ipAddress, $userAgent, $ext, $mime) {
@@ -76,7 +90,7 @@ class PrivateFileService
                 'disk' => 'local',
                 'path' => $storedPath,
                 'mime_type' => $mime,
-                'size_bytes' => (int) $file->getSize(),
+                'size_bytes' => (int) (filesize($fullPath) ?: $file->getSize()),
                 'sha256_hash' => $sha256,
                 'consent_record_id' => $consent?->id,
                 'is_confidential_health' => $isConfidentialHealth,
@@ -97,5 +111,48 @@ class PrivateFileService
 
             return $record;
         });
+    }
+
+    /**
+     * Re-encodes an uploaded image in place with GD. Rejects files GD cannot decode as an image.
+     * Skipped (file kept as uploaded) only when GD or the format's codec is unavailable on the server.
+     */
+    private function reencodeImage(string $path, string $mime): void
+    {
+        $codecs = [
+            'image/jpeg' => ['imagecreatefromjpeg', fn ($img) => imagejpeg($img, $path, 88)],
+            'image/png' => ['imagecreatefrompng', fn ($img) => imagepng($img, $path, 6)],
+            'image/webp' => ['imagecreatefromwebp', fn ($img) => imagewebp($img, $path, 88)],
+        ];
+
+        if (! isset($codecs[$mime]) || ! function_exists($codecs[$mime][0])) {
+            return;
+        }
+
+        [$decode, $encode] = $codecs[$mime];
+
+        $info = @getimagesize($path);
+        if (! $info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 40_000_000) {
+            throw new InvalidArgumentException('The image could not be read or is too large.');
+        }
+
+        $image = @$decode($path);
+        if (! $image) {
+            throw new InvalidArgumentException('The image could not be read.');
+        }
+
+        if ($mime !== 'image/jpeg') {
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+        }
+
+        $ok = $encode($image);
+        imagedestroy($image);
+
+        if (! $ok) {
+            throw new InvalidArgumentException('The image could not be processed.');
+        }
+
+        clearstatcache(true, $path);
     }
 }

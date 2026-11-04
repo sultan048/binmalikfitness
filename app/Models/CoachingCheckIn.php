@@ -9,9 +9,17 @@ class CoachingCheckIn extends Model
 {
     protected $guarded = ['id'];
 
+    protected $hidden = [
+        'client_notes',
+        'coach_feedback',
+    ];
+
     protected function casts(): array
     {
         return [
+            // Free-text health/progress notes are encrypted at rest
+            'client_notes' => 'encrypted',
+            'coach_feedback' => 'encrypted',
             'check_in_date' => 'date',
             'weight_kg' => 'float',
             'waist_cm' => 'float',

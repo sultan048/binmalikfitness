@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Domain\Inventory\InventoryService;
+use App\Models\CartItem;
 use App\Models\Coupon;
 use App\Models\InventoryBatch;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\Refund;
@@ -89,7 +91,7 @@ class StageThreeCommerceTest extends TestCase
             ->assertSee('PKR 6,470');
 
         // Increase quantity to 2 -> Subtotal = PKR 13,600, Discount = PKR 1,360, Net = PKR 12,240 (>= 10,000 -> FREE shipping)
-        $cartItem = \App\Models\CartItem::firstOrFail();
+        $cartItem = CartItem::firstOrFail();
         $this->put(route('cart.items.update', $cartItem->id), [
             'quantity' => 2,
         ])->assertRedirect();
@@ -129,10 +131,8 @@ class StageThreeCommerceTest extends TestCase
         ]);
 
         $order = Order::where('customer_email', 'guest.athlete@example.com')->firstOrFail();
-        $res->assertRedirect(route('orders.confirmation', [
-            'orderNumber' => $order->order_number,
-            'token' => $order->access_token,
-        ]));
+        // The access token never appears in the URL; access is remembered in the session instead
+        $res->assertRedirect(route('orders.confirmation', ['orderNumber' => $order->order_number]));
 
         // Verify atomic stock reservation
         $shaker->refresh();
@@ -142,17 +142,26 @@ class StageThreeCommerceTest extends TestCase
         $this->assertSame(Order::STATUS_COD_CONFIRMED, $order->status);
         $this->assertSame(Order::PAYMENT_COD_PENDING, $order->payment_status);
 
-        // Guest can view confirmation and invoice with token, but unauthorized without token
-        $this->get(route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token]))
+        // The guest who placed the order can view confirmation and invoice in the same session
+        $this->get(route('orders.confirmation', ['orderNumber' => $order->order_number]))
             ->assertOk()
             ->assertSee($order->order_number);
 
-        $this->get(route('orders.invoice', ['orderNumber' => $order->order_number, 'token' => $order->access_token]))
+        $this->get(route('orders.invoice', ['orderNumber' => $order->order_number]))
             ->assertOk()
             ->assertSee('Commercial Order Invoice');
 
+        // A different visitor (fresh session) is refused
+        $this->flushSession();
         $this->get(route('orders.confirmation', ['orderNumber' => $order->order_number]))
             ->assertForbidden();
+
+        // A legacy ?token= link is accepted once, then reloaded without the token
+        $this->get(route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token]))
+            ->assertRedirect(route('orders.confirmation', ['orderNumber' => $order->order_number]));
+        $this->get(route('orders.confirmation', ['orderNumber' => $order->order_number]))
+            ->assertOk();
+        $this->flushSession();
 
         // Guest can track order by order_number + phone
         $this->get(route('orders.track', ['order_number' => $order->order_number, 'contact' => '0321-7654321']))
@@ -343,7 +352,7 @@ class StageThreeCommerceTest extends TestCase
             'discount_value' => 40,
         ])->assertSessionHasErrors('discount_value');
 
-        $category = \App\Models\ProductCategory::firstOrFail();
+        $category = ProductCategory::firstOrFail();
 
         // Manager CANNOT create catalog products (403) or issue refunds (403)
         $this->actingAs($manager)->post(route('manage.products.store'), [

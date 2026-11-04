@@ -1,4 +1,4 @@
-@if (! app()->isProduction())
+@if (\App\Support\Demo::enabled())
     <div class="border-b border-gold/25 bg-charcoal text-[11px] text-silver">
         <div class="container-site flex flex-wrap items-center justify-between gap-2 py-1.5">
             <div class="flex flex-wrap items-center gap-2">

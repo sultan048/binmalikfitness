@@ -14,6 +14,7 @@ use App\Models\Testimonial;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class OperationsManagementController extends Controller
@@ -134,7 +135,7 @@ class OperationsManagementController extends Controller
             'meta_title' => ['required', 'string', 'max:160'],
             'meta_description' => ['required', 'string', 'max:320'],
             'canonical_url' => ['nullable', 'string', 'max:255'],
-            'robots' => ['required', 'string', \Illuminate\Validation\Rule::in(['index,follow', 'noindex,nofollow'])],
+            'robots' => ['required', 'string', Rule::in(['index,follow', 'noindex,nofollow'])],
         ]);
 
         $seo = $this->operations->saveSeoMetadata($request->user(), $validated);

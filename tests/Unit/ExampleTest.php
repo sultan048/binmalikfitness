@@ -53,7 +53,7 @@ class ExampleTest extends TestCase
 
     public function test_two_factor_totp_service_generates_and_verifies_rfc6238_codes(): void
     {
-        $totp = new TwoFactorTotpService();
+        $totp = new TwoFactorTotpService;
         $secret = $totp->generateSecret();
         $fixedTime = 1792956000;
 

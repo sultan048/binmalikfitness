@@ -75,7 +75,7 @@ class CoachingService
         };
 
         return DB::transaction(function () use ($user, $purchasable, $businessLine, $title, $sku, $pricePaisa, $paymentMethod, $renewalSubscription) {
-            $orderNumber = 'BMF-'.strtoupper($businessLine).'-'.now()->format('ymd').'-'.strtoupper(Str::random(5));
+            $orderNumber = Order::generateNumber('BMF-'.strtoupper($businessLine));
 
             $order = Order::create([
                 'order_number' => $orderNumber,
@@ -291,7 +291,8 @@ class CoachingService
         ]);
 
         if ($assignedCoach) {
-            $this->coachAssignments->assign($actor, $assignedCoach, $customer, 'coaching');
+            // System assignment from the purchased package, not a staff choice: effective immediately
+            $this->coachAssignments->assign($actor, $assignedCoach, $customer, 'coaching', preApproved: true);
         }
 
         $this->entitlements->grant(

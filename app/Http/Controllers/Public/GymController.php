@@ -111,7 +111,7 @@ class GymController extends Controller
         }
 
         return redirect()
-            ->route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token])
+            ->route('orders.confirmation', ['orderNumber' => $order->order_number])
             ->with('status', 'Gym membership order '.$order->order_number.' created. Membership activates as soon as payment is verified by staff.');
     }
 

@@ -4,6 +4,7 @@ namespace App\Domain\Platform;
 
 use App\Domain\Identity\RolePermissionMatrix;
 use App\Models\Cart;
+use App\Models\CoachingCheckIn;
 use App\Models\CoachingIntake;
 use App\Models\CustomerProfile;
 use App\Models\Order;
@@ -65,6 +66,32 @@ class DataRetentionAndSecurityService
     }
 
     /**
+     * Removes audit log entries older than the configured retention window.
+     */
+    public function pruneAuditLogs(int $retentionDays): int
+    {
+        if ($retentionDays <= 0) {
+            return 0;
+        }
+
+        $deleted = DB::table('audit_logs')
+            ->where('created_at', '<', now()->subDays($retentionDays))
+            ->delete();
+
+        if ($deleted > 0) {
+            $this->audit->record(
+                action: 'security.retention.audit_logs_pruned',
+                subject: null,
+                oldValues: null,
+                newValues: ['deleted' => $deleted, 'retention_days' => $retentionDays],
+                actor: null,
+            );
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Anonymises a customer's PII and confidential health records upon an approved account deletion request,
      * while strictly preserving immutable financial order & payment ledger totals.
      */
@@ -95,13 +122,17 @@ class DataRetentionAndSecurityService
                 'dietary_preferences' => null,
             ]);
 
-            // 2. Scrub confidential medical/health intake notes
-            CoachingIntake::where('user_id', $customer->id)->update([
+            // 2. Scrub confidential medical/health intake notes (per model so the encrypted casts apply)
+            CoachingIntake::where('user_id', $customer->id)->get()->each->update([
                 'health_notes_encrypted' => null,
                 'allergies' => '[REDACTED PER APPROVED PRIVACY REQUEST]',
                 'dietary_restrictions' => null,
                 'review_flag_reason' => null,
                 'reviewer_notes' => null,
+            ]);
+            CoachingCheckIn::where('user_id', $customer->id)->get()->each->update([
+                'client_notes' => null,
+                'coach_feedback' => null,
             ]);
 
             // 3. Scrub customer PII on orders while strictly preserving all financial paisa amounts & payment statuses

@@ -8,10 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PersonalisedPlanRequest extends Model
 {
     public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
+
     public const STATUS_AWAITING_INTAKE = 'awaiting_intake';
+
     public const STATUS_IN_PREPARATION = 'in_preparation';
+
     public const STATUS_MEDICAL_HOLD = 'medical_hold';
+
     public const STATUS_DELIVERED = 'delivered';
+
     public const STATUS_REVISION_REQUESTED = 'revision_requested';
 
     protected $guarded = ['id'];

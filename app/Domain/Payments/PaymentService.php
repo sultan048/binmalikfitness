@@ -2,6 +2,8 @@
 
 namespace App\Domain\Payments;
 
+use App\Domain\Coaching\CoachingService;
+use App\Domain\Gym\GymManagementService;
 use App\Domain\Identity\RolePermissionMatrix;
 use App\Domain\Media\PrivateFileService;
 use App\Domain\Platform\AuditLogger;
@@ -9,6 +11,9 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Refund;
 use App\Models\User;
+use App\Notifications\OrderUpdateNotification;
+use App\Support\Demo;
+use App\Support\OrderNotifier;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -116,7 +121,7 @@ class PaymentService
     {
         return User::role(RolePermissionMatrix::ROLE_ADMIN)
             ->where('status', 'active')
-            ->when(app()->isProduction(), fn ($q) => $q->where('is_demo', false))
+            ->when(! Demo::enabled(), fn ($q) => $q->where('is_demo', false))
             ->orderBy('is_demo')
             ->orderBy('id')
             ->first();
@@ -167,11 +172,13 @@ class PaymentService
                 'confirmed_at' => $order->confirmed_at ?? now(),
             ]);
 
+            OrderNotifier::send($order, OrderUpdateNotification::EVENT_PAYMENT_VERIFIED);
+
             // Trigger Stage 4 digital entitlement & coaching subscription activation when payment is verified
-            app(\App\Domain\Coaching\CoachingService::class)->fulfilVerifiedOrder($order, $staff);
+            app(CoachingService::class)->fulfilVerifiedOrder($order, $staff);
 
             // Trigger Stage 5 physical gym membership activation/renewal when payment is verified
-            app(\App\Domain\Gym\GymManagementService::class)->fulfilVerifiedOrder($order, $staff);
+            app(GymManagementService::class)->fulfilVerifiedOrder($order, $staff);
 
             $this->audit->record(
                 'payment.verified',

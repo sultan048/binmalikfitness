@@ -26,7 +26,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-2.5">
                 <a
-                    href="{{ route('orders.invoice', ['orderNumber' => $order->order_number, 'token' => $order->access_token]) }}"
+                    href="{{ route('orders.invoice', ['orderNumber' => $order->order_number]) }}"
                     class="rounded-xs border border-gold bg-charcoal px-4 py-2 text-xs font-bold uppercase tracking-wider text-gold hover:bg-gold hover:text-ink"
                 >
                     View Printable PKR Invoice
@@ -185,7 +185,6 @@
                                     class="space-y-3"
                                 >
                                     @csrf
-                                    <input type="hidden" name="token" value="{{ $order->access_token }}" />
                                     <div>
                                         <label for="proof-ref" class="field-label">Bank Transaction / RAAST Reference #</label>
                                         <input id="proof-ref" type="text" name="transaction_reference" required placeholder="MEEZAN-20261025-99182" class="field-input" />
@@ -220,7 +219,6 @@
                             </p>
                             <form method="POST" action="{{ route('orders.cancel', $order->order_number) }}" class="space-y-3">
                                 @csrf
-                                <input type="hidden" name="token" value="{{ $order->access_token }}" />
                                 <div>
                                     <label for="cancel-reason" class="field-label">Cancellation Reason</label>
                                     <input id="cancel-reason" type="text" name="reason" required placeholder="Ordered wrong flavor / changing address" class="field-input" />
@@ -240,7 +238,6 @@
                             </p>
                             <form method="POST" action="{{ route('orders.return.store', $order->order_number) }}" class="space-y-3">
                                 @csrf
-                                <input type="hidden" name="token" value="{{ $order->access_token }}" />
                                 <div>
                                     <label for="ret-reason" class="field-label">Return Reason</label>
                                     <input id="ret-reason" type="text" name="reason" required placeholder="Damaged outer box / wrong item received" class="field-input" />

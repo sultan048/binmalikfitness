@@ -6,7 +6,10 @@
 ])
 @php
     // Navigation items carrying a 'tab' key switch in-page panels (data-tab-panel); items without one stay plain links.
+    // Tab behaviour lives in the dashboardTabs Alpine component (resources/js/components.js).
     $tabKeys = collect($navigation)->pluck('tab')->filter()->unique()->values()->all();
+    $tabLabels = collect($navigation)->filter(fn ($item) => ! empty($item['tab']))->mapWithKeys(fn ($item) => [$item['tab'] => $item['label']])->all();
+    $tabMode = count($tabKeys) > 0;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -19,43 +22,9 @@
 </head>
 <body
     class="min-h-screen bg-paper text-graphite surface-paper"
-    x-data="{
-        sidebarOpen: false,
-        tabs: @js($tabKeys),
-        tab: @js($tabKeys[0] ?? null),
-        init() {
-            if (! this.tabs.length) return;
-            this.tab = this.tabFor(location.hash.slice(1)) || this.stored() || this.tabs[0];
-            this.$nextTick(() => this.reveal(location.hash.slice(1)));
-            window.addEventListener('hashchange', () => {
-                const id = location.hash.slice(1);
-                const t = this.tabFor(id);
-                if (t) { this.tab = t; this.$nextTick(() => this.reveal(id)); }
-            });
-        },
-        tabFor(id) {
-            if (! id) return null;
-            if (this.tabs.includes(id)) return id;
-            const key = document.getElementById(id)?.closest('[data-tab-panel]')?.dataset.tabPanel;
-            return this.tabs.includes(key) ? key : null;
-        },
-        reveal(id) {
-            if (id && ! this.tabs.includes(id)) document.getElementById(id)?.scrollIntoView();
-        },
-        stored() {
-            try {
-                const t = sessionStorage.getItem('bmf-tab:' + location.pathname);
-                return this.tabs.includes(t) ? t : null;
-            } catch (e) { return null; }
-        },
-        setTab(t) {
-            this.tab = t;
-            this.sidebarOpen = false;
-            try { sessionStorage.setItem('bmf-tab:' + location.pathname, t); } catch (e) {}
-            history.replaceState(null, '', '#' + t);
-            window.scrollTo({ top: 0 });
-        },
-    }"
+    x-data="dashboardTabs"
+    data-tabs="{{ json_encode($tabKeys) }}"
+    data-tab-labels="{{ json_encode($tabLabels) }}"
 >
     <x-site.prototype-bar />
 
@@ -83,19 +52,30 @@
                 </div>
             @endauth
 
-            <nav aria-label="{{ $roleLabel }} Modules" class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+            <nav
+                aria-label="{{ $roleLabel }} Modules"
+                class="flex-1 overflow-y-auto px-3 py-4 space-y-1"
+                @if ($tabMode) role="tablist" aria-orientation="vertical" @endif
+            >
                 @foreach ($navigation as $idx => $item)
                     @if (! empty($item['group']) && $item['group'] !== ($navigation[$idx - 1]['group'] ?? null))
-                        <p class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-widest text-gold/80">{{ $item['group'] }}</p>
+                        <p role="presentation" class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-widest text-gold/80">{{ $item['group'] }}</p>
                     @endif
 
                     @if (! empty($item['tab']))
                         <button
                             type="button"
+                            role="tab"
+                            id="tab-btn-{{ $item['tab'] }}"
                             @click="setTab(@js($item['tab']))"
+                            @keydown.arrow-down.prevent="moveTab(1)"
+                            @keydown.arrow-up.prevent="moveTab(-1)"
+                            @keydown.home.prevent="firstTab()"
+                            @keydown.end.prevent="lastTab()"
                             :class="tab === @js($item['tab']) ? 'bg-gold text-ink font-semibold' : 'text-silver hover:bg-white/5 hover:text-ivory'"
-                            :aria-current="tab === @js($item['tab']) ? 'page' : false"
-                            class="flex w-full cursor-pointer items-center justify-between rounded-xs px-3 py-2 text-left text-xs font-medium transition"
+                            :aria-selected="tab === @js($item['tab']) ? 'true' : 'false'"
+                            :tabindex="tab === @js($item['tab']) ? 0 : -1"
+                            class="flex w-full cursor-pointer items-center justify-between rounded-xs px-3 py-2 text-left text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
                         >
                             <span>{{ $item['label'] }}</span>
                             @if (isset($item['badge']) && $item['badge'] !== '')
@@ -140,10 +120,16 @@
                 <div class="flex items-center gap-3">
                     <button
                         type="button"
-                        @click="sidebarOpen = !sidebarOpen"
-                        class="lg:hidden rounded-xs border border-graphite/20 px-2.5 py-1.5 text-xs font-semibold uppercase"
+                        @click="toggleSidebar()"
+                        :aria-expanded="sidebarOpen ? 'true' : 'false'"
+                        aria-controls="mobile-modules"
+                        class="lg:hidden max-w-[11rem] truncate rounded-xs border border-graphite/20 px-2.5 py-1.5 text-xs font-semibold uppercase"
                     >
-                        Modules
+                        @if ($tabMode)
+                            <span x-text="currentLabel ? '☰ ' + currentLabel : 'Modules'">Modules</span>
+                        @else
+                            Modules
+                        @endif
                     </button>
                     <div>
                         <h1 class="font-display text-2xl uppercase tracking-wide text-graphite leading-none">{{ $title }}</h1>
@@ -163,7 +149,7 @@
                 </div>
             </header>
 
-            <div x-show="sidebarOpen" x-cloak class="border-b border-white/10 bg-ink p-4 text-ivory lg:hidden">
+            <div id="mobile-modules" x-show="sidebarOpen" x-cloak class="border-b border-white/10 bg-ink p-4 text-ivory lg:hidden">
                 <div class="grid grid-cols-2 gap-1.5 text-xs">
                     @foreach ($navigation as $idx => $item)
                         @if (! empty($item['group']) && $item['group'] !== ($navigation[$idx - 1]['group'] ?? null))
@@ -175,6 +161,7 @@
                                 type="button"
                                 @click="setTab(@js($item['tab']))"
                                 :class="tab === @js($item['tab']) ? 'bg-gold text-ink font-semibold' : 'bg-charcoal text-silver hover:text-gold'"
+                                :aria-current="tab === @js($item['tab']) ? 'page' : false"
                                 class="cursor-pointer rounded-xs px-2.5 py-2 text-left"
                             >{{ $item['label'] }}</button>
                         @else
@@ -202,6 +189,11 @@
                             @endforeach
                         </ul>
                     </div>
+                @endif
+
+                @if ($tabMode)
+                    {{-- Name of the open tab, so the page says where you are --}}
+                    <h2 x-show="currentLabel" x-text="currentLabel" x-cloak class="font-display text-3xl uppercase tracking-wide text-graphite leading-none"></h2>
                 @endif
 
                 {{ $slot }}

@@ -3,21 +3,7 @@
 @endphp
 
 <div
-    x-data="{
-        consentGranted: false,
-        panelOpen: false,
-        init() {
-            try {
-                this.consentGranted = localStorage.getItem('bmf_consent_analytics') === 'granted';
-            } catch (_) {}
-        },
-        toggleConsent() {
-            this.consentGranted = !this.consentGranted;
-            try {
-                localStorage.setItem('bmf_consent_analytics', this.consentGranted ? 'granted' : 'denied');
-            } catch (_) {}
-        }
-    }"
+    x-data="whatsappFloat"
     class="fixed right-5 bottom-5 z-50 flex flex-col items-end gap-2"
 >
     <div
@@ -40,7 +26,7 @@
             href="https://wa.me/{{ $waNumber }}?text={{ urlencode('Assalam o Alaikum BIN MALIK FITNESS — I would like guidance on coaching / supplements.') }}"
             target="_blank"
             rel="noopener noreferrer"
-            @click="window.bmfTrack && window.bmfTrack('whatsapp_contact_click', { location: window.location.pathname })"
+            @click="trackClick()"
             class="mt-3 flex w-full items-center justify-center gap-2 rounded-xs bg-gold px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-ink hover:bg-gold/90"
         >
             Open WhatsApp Chat

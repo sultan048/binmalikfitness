@@ -165,7 +165,7 @@ class CoachingAndProgramsController extends Controller
         );
 
         return redirect()
-            ->route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token])
+            ->route('orders.confirmation', ['orderNumber' => $order->order_number])
             ->with('status', "Coaching order {$order->order_number} created. Submit your payment proof below; your coaching subscription activates once staff verifies payment.");
     }
 
@@ -192,7 +192,7 @@ class CoachingAndProgramsController extends Controller
         );
 
         return redirect()
-            ->route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token])
+            ->route('orders.confirmation', ['orderNumber' => $order->order_number])
             ->with('status', "Diet plan order {$order->order_number} created. Entitlement activates once staff verifies your payment.");
     }
 
@@ -211,7 +211,7 @@ class CoachingAndProgramsController extends Controller
         );
 
         return redirect()
-            ->route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token])
+            ->route('orders.confirmation', ['orderNumber' => $order->order_number])
             ->with('status', "Workout program order {$order->order_number} created. Entitlement activates after payment verification.");
     }
 
@@ -395,7 +395,7 @@ class CoachingAndProgramsController extends Controller
         );
 
         return redirect()
-            ->route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token])
+            ->route('orders.confirmation', ['orderNumber' => $order->order_number])
             ->with('status', "Manual renewal order {$order->order_number} created. Once payment is verified by staff, your coaching term will be extended.");
     }
 

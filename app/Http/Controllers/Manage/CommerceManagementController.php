@@ -7,6 +7,7 @@ use App\Domain\Commerce\OrderFulfilmentService;
 use App\Domain\Inventory\InventoryService;
 use App\Domain\Payments\PaymentService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
 use App\Models\Payment;
@@ -168,18 +169,9 @@ class CommerceManagementController extends Controller
         return back()->with('status', "Rejected payment proof for Order {$payment->order->order_number}.");
     }
 
-    public function updateOrderStatus(Request $request, Order $order): RedirectResponse
+    public function updateOrderStatus(UpdateOrderStatusRequest $request, Order $order): RedirectResponse
     {
-        if (! $request->user()->can('orders.fulfil')) {
-            abort(403, 'You are not authorized to update order statuses.');
-        }
-
-        $validated = $request->validate([
-            'status' => ['required', 'string', 'in:processing,shipped,delivered,cancelled'],
-            'courier_name' => ['nullable', 'string', 'max:80'],
-            'tracking_number' => ['nullable', 'string', 'max:80'],
-            'cancellation_reason' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $this->fulfilment->transitionStatus($order, $validated['status'], $request->user(), $validated);
 

@@ -33,7 +33,6 @@ use App\Models\NotificationTemplate;
 use App\Models\OpeningHour;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
-use App\Models\Payment;
 use App\Models\PersonalisedPlanRequest;
 use App\Models\PrivacyRequest;
 use App\Models\Product;
@@ -53,6 +52,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BackOfficeController extends Controller
 {
@@ -92,11 +92,21 @@ class BackOfficeController extends Controller
             $ticketsQuery->where('status', $ticketStatus);
         }
 
-        $users = User::with(['roles', 'staffProfile', 'customerProfile'])->orderBy('id')->get();
+        // Large, growing lists are paginated; each paginator keeps its own page parameter and reopens its tab via the #fragment
+        $userSearch = trim((string) $request->query('user_search', ''));
+        $users = User::with(['roles', 'staffProfile', 'customerProfile'])
+            ->when($userSearch !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('name', 'like', "%{$userSearch}%")
+                ->orWhere('email', 'like', "%{$userSearch}%")
+                ->orWhere('phone', 'like', "%{$userSearch}%")))
+            ->orderBy('id')
+            ->paginate(25, ['*'], 'users_page')->withQueryString()->fragment('users');
         $coaches = User::role([RolePermissionMatrix::ROLE_COACH, RolePermissionMatrix::ROLE_MANAGER, RolePermissionMatrix::ROLE_ADMIN])->orderBy('name')->get();
         $customers = User::role(RolePermissionMatrix::ROLE_CUSTOMER)->orderBy('name')->get();
-        $assignments = CoachAssignment::with(['coach', 'client'])
+        // Active and pending assignments; pending ones first so they get approved promptly
+        $assignments = CoachAssignment::with(['coach', 'client', 'assigner'])
             ->whereNull('ends_at')
+            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
             ->latest('starts_at')
             ->get();
 
@@ -119,10 +129,10 @@ class BackOfficeController extends Controller
             'brands' => Brand::orderBy('name')->get(),
             'products' => Product::with(['category', 'brand', 'variants.batches', 'documents'])->orderBy('id')->get(),
             'variants' => ProductVariant::with(['product', 'batches'])->orderBy('id')->get(),
-            'orders' => $ordersQuery->get(),
+            'orders' => $ordersQuery->paginate(25, ['*'], 'orders_page')->withQueryString()->fragment('orders'),
             'coupons' => Coupon::latest('id')->get(),
-            'reviews' => ProductReview::with(['product', 'user', 'order'])->latest('id')->get(),
-            'returnRequests' => OrderReturnRequest::with(['order', 'user'])->latest('id')->get(),
+            'reviews' => ProductReview::with(['product', 'user', 'order'])->latest('id')->paginate(15, ['*'], 'reviews_page')->withQueryString()->fragment('promos'),
+            'returnRequests' => OrderReturnRequest::with(['order', 'user'])->latest('id')->paginate(15, ['*'], 'returns_page')->withQueryString()->fragment('promos'),
             'recentMovements' => InventoryMovement::with(['variant.product', 'actor', 'batch'])->latest('created_at')->take(12)->get(),
             'coachingPackages' => CoachingPackage::orderBy('sort_order')->get(),
             'dietPlans' => DietPlan::with('versions')->orderBy('id')->get(),
@@ -133,7 +143,8 @@ class BackOfficeController extends Controller
             'checkIns' => CoachingCheckIn::with(['user', 'reviewer'])->latest('check_in_date')->take(15)->get(),
             'consultations' => CoachingConsultation::with(['user', 'coach'])->orderBy('scheduled_at')->get(),
             'membershipPlans' => MembershipPlan::orderBy('sort_order')->get(),
-            'gymMemberships' => GymMembership::with(['user', 'plan', 'assignedTrainer', 'order'])->latest('id')->get(),
+            'gymMembershipsCount' => GymMembership::count(),
+            'activeGymMembershipsCount' => GymMembership::where('status', GymMembership::STATUS_ACTIVE)->count(),
             'gymCheckIns' => GymCheckIn::with(['user', 'membership', 'recorder'])->latest('checked_in_at')->take(15)->get(),
             'gymClasses' => GymClass::with('instructor')->orderBy('day_of_week')->orderBy('starts_at_time')->get(),
             'openingHours' => OpeningHour::orderBy('day_of_week')->get(),
@@ -143,11 +154,11 @@ class BackOfficeController extends Controller
             'financialSummary' => $this->analytics->getReconciledFinancialSummary($from, $to),
             'operationalMetrics' => $this->analytics->getOperationalMetrics($from, $to),
             'systemHealth' => $this->analytics->getSystemHealthSummary(),
-            'supportTickets' => $ticketsQuery->get(),
+            'supportTickets' => $ticketsQuery->paginate(15, ['*'], 'tickets_page')->withQueryString()->fragment('support'),
             'cmsPages' => CmsPage::with('editor')->orderBy('section')->orderBy('title')->get(),
             'mediaAssets' => MediaAsset::with('uploader')->latest('id')->get(),
             'testimonials' => Testimonial::with('consentRecord.user')->latest('id')->get(),
-            'consentRecords' => ConsentRecord::with('user')->whereNull('withdrawn_at')->latest('granted_at')->get(),
+            'consentRecords' => ConsentRecord::with('user')->whereNull('withdrawn_at')->latest('granted_at')->take(50)->get(),
             'seoMetadataRecords' => SeoMetadata::latest('id')->get(),
             'notificationTemplates' => NotificationTemplate::orderBy('key')->get(),
             'privacyRequests' => PrivacyRequest::with(['user', 'processor'])->latest('id')->get(),
@@ -161,6 +172,68 @@ class BackOfficeController extends Controller
             'filterOrderSearch' => $orderSearch,
             'filterOrderStatus' => $orderStatus,
             'filterTicketStatus' => $ticketStatus,
+            'filterUserSearch' => $userSearch,
+        ]);
+    }
+
+    /**
+     * CSV exports of the staff lists. Each dataset requires the permission that already guards
+     * the matching dashboard section.
+     */
+    public function exportCsv(Request $request, string $dataset): StreamedResponse
+    {
+        $definitions = [
+            'customers' => [
+                'permission' => 'users.view',
+                'headers' => ['ID', 'Name', 'Email', 'Phone', 'Status', 'Email verified', 'Registered', 'Last login'],
+                'query' => fn () => User::role(RolePermissionMatrix::ROLE_CUSTOMER)->orderBy('id'),
+                'row' => fn (User $u) => [$u->id, $u->name, $u->email, $u->phone, $u->status, $u->email_verified_at ? 'yes' : 'no', $u->created_at?->format('Y-m-d'), $u->last_login_at?->format('Y-m-d H:i')],
+            ],
+            'enquiries' => [
+                'permission' => 'enquiries.manage',
+                'headers' => ['ID', 'Name', 'Phone', 'Email', 'Type', 'Status', 'Created'],
+                'query' => fn () => Enquiry::query()->orderByDesc('id'),
+                'row' => fn (Enquiry $e) => [$e->id, $e->name, $e->phone, $e->email, $e->type, $e->status, $e->created_at?->format('Y-m-d H:i')],
+            ],
+            'support-tickets' => [
+                'permission' => 'support.handle',
+                'headers' => ['Ticket', 'Customer', 'Subject', 'Category', 'Priority', 'Status', 'Last reply'],
+                'query' => fn () => SupportTicket::with('user')->orderByDesc('id'),
+                'row' => fn (SupportTicket $t) => [$t->ticket_number ?? $t->id, $t->user?->email, $t->subject, $t->category, $t->priority, $t->status, $t->last_reply_at?->format('Y-m-d H:i')],
+            ],
+            'gym-memberships' => [
+                'permission' => 'gym.memberships.manage',
+                'headers' => ['Membership', 'Member', 'Email', 'Plan', 'Status', 'Starts', 'Ends'],
+                'query' => fn () => GymMembership::with(['user', 'plan'])->orderByDesc('id'),
+                'row' => fn (GymMembership $m) => [$m->membership_number, $m->user?->name, $m->user?->email, $m->plan?->name, $m->status, $m->starts_at?->format('Y-m-d'), $m->ends_at?->format('Y-m-d')],
+            ],
+        ];
+
+        abort_unless(isset($definitions[$dataset]), 404);
+        $definition = $definitions[$dataset];
+
+        // Coaches hold some of these permissions only for their assigned clients, so full exports are admin/manager only
+        abort_unless(
+            $request->user()->hasAnyRole([RolePermissionMatrix::ROLE_ADMIN, RolePermissionMatrix::ROLE_MANAGER])
+                && $request->user()->can($definition['permission']),
+            403
+        );
+
+        $this->audit->record('reports.csv.exported', null, null, ['dataset' => $dataset], $request->user());
+
+        return response()->streamDownload(function () use ($definition) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, $definition['headers']);
+            $definition['query']()->chunk(500, function ($rows) use ($out, $definition) {
+                foreach ($rows as $row) {
+                    fputcsv($out, $definition['row']($row));
+                }
+            });
+            fclose($out);
+        }, "binmalikfitness-{$dataset}-".now()->format('Y-m-d').'.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 
@@ -180,6 +253,7 @@ class BackOfficeController extends Controller
         $ticketStatus = trim((string) $request->query('ticket_status', ''));
 
         $assignedCustomerIds = CoachAssignment::query()
+            ->approved()
             ->where('coach_id', $actor->id)
             ->whereNull('ends_at')
             ->pluck('client_id');
@@ -219,13 +293,15 @@ class BackOfficeController extends Controller
             'managerPermissions' => RolePermissionMatrix::roleMap()[RolePermissionMatrix::ROLE_MANAGER],
             'products' => Product::with(['defaultVariant', 'variants.batches'])->get(),
             'variants' => ProductVariant::with(['product', 'batches'])->orderBy('id')->get(),
-            'orders' => $ordersQuery->get(),
+            'orders' => $ordersQuery->paginate(25, ['*'], 'orders_page')->withQueryString()->fragment('orders'),
             'coupons' => Coupon::latest('id')->get(),
-            'returnRequests' => OrderReturnRequest::with(['order', 'user'])->latest('id')->get(),
+            'returnRequests' => OrderReturnRequest::with(['order', 'user'])->latest('id')->take(30)->get(),
             'recentMovements' => InventoryMovement::with(['variant.product', 'actor'])->latest('created_at')->take(8)->get(),
             'workoutPrograms' => WorkoutProgram::orderBy('id')->get(),
             'membershipPlans' => MembershipPlan::where('status', 'active')->orderBy('sort_order')->get(),
-            'gymMemberships' => GymMembership::with(['user', 'plan', 'assignedTrainer', 'order'])->latest('id')->get(),
+            // Reception desk shows the latest memberships; the total is counted separately
+            'gymMemberships' => GymMembership::with(['user', 'plan', 'assignedTrainer', 'order'])->latest('id')->take(20)->get(),
+            'gymMembershipsCount' => GymMembership::count(),
             'gymCheckIns' => GymCheckIn::with(['user', 'membership', 'recorder'])->latest('checked_in_at')->take(12)->get(),
             'gymClasses' => GymClass::with('instructor')->orderBy('day_of_week')->orderBy('starts_at_time')->get(),
             'assignedSubscriptions' => CoachingSubscription::with(['user', 'package'])
@@ -254,7 +330,7 @@ class BackOfficeController extends Controller
                 ->take(15)
                 ->get(),
             'operationalMetrics' => $this->analytics->getOperationalMetrics($from, $to),
-            'supportTickets' => $ticketsQuery->get(),
+            'supportTickets' => $ticketsQuery->paginate(15, ['*'], 'tickets_page')->withQueryString()->fragment('support'),
             'roleNotifications' => RoleNotification::where('user_id', $actor->id)
                 ->orWhereIn('role_scope', ['manager', 'coach'])
                 ->latest('created_at')
@@ -340,7 +416,7 @@ class BackOfficeController extends Controller
             ]);
         }
 
-        $coachService->assign(
+        $assignment = $coachService->assign(
             actor: $request->user(),
             coach: $coach,
             client: $client,
@@ -348,7 +424,25 @@ class BackOfficeController extends Controller
             notes: $validated['notes'] ?? null,
         );
 
-        return back()->with('status', "Assigned {$coach->name} to {$client->name} ({$validated['context']}).");
+        $message = $assignment->status === CoachAssignment::STATUS_APPROVED
+            ? "Assigned {$coach->name} to {$client->name} ({$validated['context']})."
+            : "Assignment of {$coach->name} to {$client->name} ({$validated['context']}) sent to an administrator for approval.";
+
+        return back()->with('status', $message);
+    }
+
+    public function approveAssignment(Request $request, CoachAssignment $assignment, CoachAssignmentService $coachService): RedirectResponse
+    {
+        $coachService->approve($assignment, $request->user());
+
+        return back()->with('status', 'Coach assignment approved.');
+    }
+
+    public function rejectAssignment(Request $request, CoachAssignment $assignment, CoachAssignmentService $coachService): RedirectResponse
+    {
+        $coachService->reject($assignment, $request->user());
+
+        return back()->with('status', 'Coach assignment rejected.');
     }
 
     public function updateSettings(Request $request): RedirectResponse

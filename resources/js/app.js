@@ -1,9 +1,13 @@
-import Alpine from 'alpinejs';
+// CSP build: evaluates Alpine expressions without eval/new Function, so the
+// Content-Security-Policy can drop 'unsafe-eval' and 'unsafe-inline' for scripts.
+import Alpine from '@alpinejs/csp';
 import collapse from '@alpinejs/collapse';
 import focus from '@alpinejs/focus';
+import registerComponents from './components';
 
 Alpine.plugin(collapse);
 Alpine.plugin(focus);
+registerComponents(Alpine);
 
 window.Alpine = Alpine;
 
@@ -20,5 +24,13 @@ window.bmfTrack = function (eventName, payload = {}) {
         // Storage unavailable; fail silently without blocking user navigation
     }
 };
+
+// Print buttons (e.g. invoice "Print / Save PDF") without inline onclick handlers
+document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-print]')) {
+        event.preventDefault();
+        window.print();
+    }
+});
 
 Alpine.start();

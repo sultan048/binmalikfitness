@@ -43,6 +43,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demonstration Mode
+    |--------------------------------------------------------------------------
+    |
+    | Enables the one-click demo role switcher, demo accounts, the seeded sample
+    | catalogue and the design-system page. Always ignored in production; see
+    | App\Support\Demo::enabled().
+    |
+    */
+
+    'demo_mode' => (bool) env('DEMO_MODE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operations: alerts, backups and retention
+    |--------------------------------------------------------------------------
+    */
+
+    // Reverse proxies in front of the app (Cloudflare, host load balancer): comma-separated IPs/CIDRs, or *
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    // Throttled e-mail alert for unhandled exceptions (empty = disabled)
+    'error_alert_email' => env('ERROR_ALERT_EMAIL'),
+
+    // php artisan backup:run
+    'mysqldump_path' => env('MYSQLDUMP_PATH', 'mysqldump'),
+    'backup_keep_days' => (int) env('BACKUP_KEEP_DAYS', 14),
+
+    // php artisan security:prune (0 = keep audit logs forever)
+    'audit_retention_days' => (int) env('AUDIT_RETENTION_DAYS', 730),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

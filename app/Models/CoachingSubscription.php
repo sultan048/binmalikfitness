@@ -10,10 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class CoachingSubscription extends Model
 {
     public const STATUS_PENDING_PAYMENT = 'pending_payment';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_PAUSED = 'paused';
+
     public const STATUS_EXPIRED = 'expired';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_REVOKED = 'revoked';
 
     protected $guarded = ['id'];

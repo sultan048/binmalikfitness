@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CartService
@@ -18,7 +19,7 @@ class CartService
         $user = $request->user();
         $sessionToken = (string) $request->session()->get('bmf_cart_token', '');
         if ($sessionToken === '') {
-            $sessionToken = \Illuminate\Support\Str::uuid()->toString();
+            $sessionToken = Str::uuid()->toString();
             $request->session()->put('bmf_cart_token', $sessionToken);
         }
 

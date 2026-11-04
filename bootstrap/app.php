@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAccountIsActiveAndPermitted;
 use App\Http\Middleware\PreventDuplicateSubmission;
+use App\Support\ErrorAlert;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trusted proxies come from config('app.trusted_proxies'); applied in AppServiceProvider::boot()
         $middleware->web(append: [
             ApplySecurityHeaders::class,
             EnsureAccountIsActiveAndPermitted::class,
@@ -30,5 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->report(function (Throwable $e) {
+            ErrorAlert::send($e);
+        });
     })->create();

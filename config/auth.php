@@ -114,4 +114,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mandatory Two-Factor Authentication for Staff
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, admin, manager and coach accounts are redirected to the 2FA
+    | setup page until 2FA is confirmed. On by default in production.
+    |
+    */
+
+    'require_staff_two_factor' => (bool) env('REQUIRE_STAFF_2FA', env('APP_ENV') === 'production'),
+
 ];

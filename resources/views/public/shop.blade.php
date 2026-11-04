@@ -145,7 +145,7 @@
                     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-graphite/12 pb-4">
                         <div class="flex flex-wrap items-center gap-2">
                             <a href="{{ route('shop.index') }}" class="rounded-xs px-3 py-1.5 text-xs font-semibold uppercase tracking-wider {{ !request('collection') ? 'bg-ink text-gold' : 'bg-white border border-graphite/15 text-graphite' }}">
-                                All ({{ $products->count() }})
+                                All ({{ $products->total() }})
                             </a>
                             <a href="{{ route('shop.index', ['collection' => 'bestsellers']) }}" class="rounded-xs px-3 py-1.5 text-xs font-semibold uppercase tracking-wider {{ request('collection') === 'bestsellers' ? 'bg-ink text-gold' : 'bg-white border border-graphite/15 text-graphite' }}">
                                 Bestsellers
@@ -155,7 +155,7 @@
                             </a>
                         </div>
                         <p class="text-xs font-semibold text-graphite/70">
-                            Showing {{ $products->count() }} product(s) · Promo code <code class="font-mono font-bold text-gold-dark">BMF10</code> (10% off PKR 5,000+)
+                            Showing {{ $products->total() }} product(s) · Promo code <code class="font-mono font-bold text-gold-dark">BMF10</code> (10% off PKR 5,000+)
                         </p>
                     </div>
 
@@ -277,6 +277,8 @@
                                 </article>
                             @endforeach
                         </div>
+
+                        {{ $products->links() }}
                     @endif
 
                     @if ($recentlyViewed->isNotEmpty())

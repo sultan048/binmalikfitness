@@ -134,11 +134,10 @@
                         <form
                             method="POST"
                             action="{{ route('checkout.place') }}"
-                            x-data="{
-                                useSavedAddress: '{{ $savedAddresses->first()?->id ?? '' }}',
-                                paymentMethod: '{{ old('payment_method', 'cod') }}',
-                                shippingMethod: '{{ old('shipping_method', $totals['shipping_method']) }}'
-                            }"
+                            x-data="checkoutForm"
+                            data-saved-address="{{ $savedAddresses->first()?->id ?? '' }}"
+                            data-payment-method="{{ old('payment_method', 'cod') }}"
+                            data-shipping-method="{{ old('shipping_method', $totals['shipping_method']) }}"
                             class="rounded-sm border border-graphite/12 bg-white p-6 sm:p-8 space-y-6"
                         >
                             @csrf

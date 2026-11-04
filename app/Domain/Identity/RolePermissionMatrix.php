@@ -5,8 +5,11 @@ namespace App\Domain\Identity;
 final class RolePermissionMatrix
 {
     public const ROLE_ADMIN = 'admin';
+
     public const ROLE_MANAGER = 'manager';
+
     public const ROLE_COACH = 'coach';
+
     public const ROLE_CUSTOMER = 'customer';
 
     /**

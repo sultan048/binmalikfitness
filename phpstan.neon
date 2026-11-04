@@ -1,0 +1,9 @@
+# Larastan configuration. Installed on CI only (see .github/workflows/ci.yml);
+# locally: composer require --dev larastan/larastan && vendor/bin/phpstan analyse
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+    level: 4

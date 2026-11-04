@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 class CatalogManagementService
 {
     public const MANAGER_MAX_PERCENT_COUPON = 20;
+
     public const MANAGER_MAX_FIXED_COUPON_PAISA = 300000; // PKR 3,000
 
     public function __construct(

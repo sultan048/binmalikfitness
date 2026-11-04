@@ -52,7 +52,7 @@
                         </x-ui.button>
                     </form>
 
-                    @if (! app()->isProduction())
+                    @if (\App\Support\Demo::enabled())
                         <div class="border-t border-white/10 pt-5 space-y-3">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-bold uppercase tracking-wider text-gold">Local/Testing One-Click Demo Login</span>

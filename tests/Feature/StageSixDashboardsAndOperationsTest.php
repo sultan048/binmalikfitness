@@ -3,15 +3,11 @@
 namespace Tests\Feature;
 
 use App\Domain\Platform\AnalyticsAndReportingService;
-use App\Models\CmsPage;
 use App\Models\ConsentRecord;
-use App\Models\MediaAsset;
-use App\Models\NotificationTemplate;
 use App\Models\Order;
 use App\Models\PrivacyRequest;
 use App\Models\Product;
 use App\Models\RoleNotification;
-use App\Models\SeoMetadata;
 use App\Models\SupportTicket;
 use App\Models\Testimonial;
 use App\Models\User;

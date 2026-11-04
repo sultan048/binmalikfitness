@@ -13,6 +13,9 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Notifications\OrderUpdateNotification;
+use App\Support\OrderNotifier;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -53,9 +56,26 @@ class CheckoutService
             ]);
         }
 
+        try {
+            $order = $this->createOrder($cart, $data, $user, $idempotencyKey, $paymentMethod);
+            OrderNotifier::send($order, OrderUpdateNotification::EVENT_PLACED);
+
+            return $order;
+        } catch (UniqueConstraintViolationException) {
+            // Two simultaneous submissions with the same key: the unique index lets only one through
+            throw new HttpException(409, 'Duplicate checkout submission detected. Your order has already been placed.');
+        }
+    }
+
+    private function createOrder(Cart $cart, array $data, ?User $user, ?string $idempotencyKey, string $paymentMethod): Order
+    {
         return DB::transaction(function () use ($cart, $data, $user, $idempotencyKey, $paymentMethod) {
             $shippingMethod = $data['shipping_method'] ?? ($cart->shipping_method ?: 'standard_courier');
-            $totals = $this->pricing->calculateCartTotals($cart, $shippingMethod);
+
+            // Resolve shipping address snapshot (either from saved address_id or submitted fields) first,
+            // so the delivery city's courier rate is applied to the final totals
+            $addressSnapshot = $this->resolveAddressSnapshot($data, $user);
+            $totals = $this->pricing->calculateCartTotals($cart, $shippingMethod, $addressSnapshot['city'] ?? null);
 
             if ($totals['subtotal_paisa'] <= 0 || empty($totals['lines'])) {
                 throw ValidationException::withMessages(['cart' => ['Unable to compute valid order lines.']]);
@@ -72,9 +92,6 @@ class CheckoutService
                 $coupon->increment('used_count');
             }
 
-            // Resolve shipping address snapshot (either from saved address_id or submitted fields)
-            $addressSnapshot = $this->resolveAddressSnapshot($data, $user);
-
             $orderStatus = $paymentMethod === 'cod'
                 ? Order::STATUS_COD_CONFIRMED
                 : Order::STATUS_AWAITING_PAYMENT;
@@ -83,7 +100,7 @@ class CheckoutService
                 ? Order::PAYMENT_COD_PENDING
                 : Order::PAYMENT_UNPAID;
 
-            $orderNumber = 'BMF-'.now()->format('Ymd').'-'.strtoupper(Str::random(5));
+            $orderNumber = Order::generateNumber('BMF');
 
             $order = Order::create([
                 'order_number' => $orderNumber,

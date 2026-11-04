@@ -15,12 +15,12 @@ use App\Http\Controllers\Media\PrivateFileController;
 use App\Http\Controllers\Public\CoachingAndProgramsController;
 use App\Http\Controllers\Public\CommerceController;
 use App\Http\Controllers\Public\GymController;
-use App\Http\Controllers\Public\PrototypeController;
+use App\Http\Controllers\Public\HomeController;
 use App\Http\Controllers\Public\SeoAndContentController;
 use Illuminate\Support\Facades\Route;
 
 // Public Storefront & Design System Routes
-Route::controller(PrototypeController::class)->group(function () {
+Route::controller(HomeController::class)->group(function () {
     Route::get('/', 'home')->name('home');
     Route::get('/design-system', 'designSystem')->name('design.system');
 });
@@ -39,7 +39,7 @@ Route::controller(CoachingAndProgramsController::class)->group(function () {
     Route::get('/diet-plans/{slug}', 'dietPlanShow')->name('diet-plans.show');
     Route::get('/videos/{slug}/watch', 'watchVideo')->name('videos.watch');
 
-    Route::middleware('auth')->group(function () {
+    Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/coaching/{slug}/enrol', 'enrolCoaching')->name('coaching.enrol');
         Route::post('/diet-plans/{slug}/purchase', 'purchaseDietPlan')->name('diet-plans.purchase');
         Route::post('/workout-programs/{slug}/purchase', 'purchaseWorkoutProgram')->name('workout-programs.purchase');
@@ -64,7 +64,7 @@ Route::controller(GymController::class)->group(function () {
     Route::get('/gym', 'index')->name('gym.index');
     Route::post('/gym/enquiries', 'submitEnquiry')->middleware('throttle:6,1')->name('gym.enquiries.store');
 
-    Route::middleware('auth')->group(function () {
+    Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/gym/memberships/{slug}/purchase', 'purchaseMembership')->name('gym.memberships.purchase');
         Route::post('/gym/classes/{gymClass}/book', 'bookClass')->name('gym.classes.book');
         Route::delete('/gym/class-bookings/{booking}', 'cancelClassBooking')->name('gym.class-bookings.cancel');
@@ -77,9 +77,9 @@ Route::controller(CommerceController::class)->group(function () {
     Route::get('/products/{slug}', 'productShow')->name('products.show');
 
     Route::get('/cart', 'cartCheckout')->name('cart.index');
-    Route::post('/cart/items', 'addToCart')->name('cart.items.store');
-    Route::put('/cart/items/{cartItem}', 'updateCartItem')->name('cart.items.update');
-    Route::delete('/cart/items/{cartItem}', 'removeCartItem')->name('cart.items.destroy');
+    Route::post('/cart/items', 'addToCart')->middleware('throttle:30,1')->name('cart.items.store');
+    Route::put('/cart/items/{cartItem}', 'updateCartItem')->middleware('throttle:30,1')->name('cart.items.update');
+    Route::delete('/cart/items/{cartItem}', 'removeCartItem')->middleware('throttle:30,1')->name('cart.items.destroy');
     Route::post('/cart/coupon', 'applyCoupon')->middleware('throttle:10,1')->name('cart.coupon.apply');
     Route::delete('/cart/coupon', 'removeCoupon')->name('cart.coupon.remove');
 
@@ -92,11 +92,11 @@ Route::controller(CommerceController::class)->group(function () {
     Route::post('/orders/{orderNumber}/cancel', 'cancelOrder')->name('orders.cancel');
     Route::post('/orders/{orderNumber}/return', 'requestReturn')->name('orders.return.store');
 
-    Route::post('/wishlist/toggle', 'toggleWishlist')->name('wishlist.toggle');
+    Route::post('/wishlist/toggle', 'toggleWishlist')->middleware('throttle:30,1')->name('wishlist.toggle');
     Route::post('/stock-alerts', 'subscribeStockAlert')->middleware('throttle:6,1')->name('stock-alerts.store');
 
     Route::post('/products/{product}/reviews', 'submitReview')
-        ->middleware('auth')
+        ->middleware(['auth', 'verified', 'throttle:10,1'])
         ->name('products.reviews.store');
 });
 
@@ -133,14 +133,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/two-factor/enable', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
     Route::post('/two-factor/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:5,1')->name('two-factor.confirm');
     Route::post('/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:5,1')->name('two-factor.disable');
+    Route::post('/two-factor/recovery-codes', [TwoFactorController::class, 'regenerateRecoveryCodes'])->middleware('throttle:5,1')->name('two-factor.recovery-codes');
+    Route::get('/two-factor/setup', [TwoFactorController::class, 'showSetup'])->name('two-factor.setup');
 
     // Authorized Private File Streaming (never served from /public)
     Route::get('/private-files/{privateFile}', [PrivateFileController::class, 'download'])->name('private-files.download');
 });
 
 // Customer Portal (/account)
-Route::middleware('auth')->prefix('account')->name('account.')->controller(CustomerAccountController::class)->group(function () {
+Route::middleware(['auth', 'verified'])->prefix('account')->name('account.')->controller(CustomerAccountController::class)->group(function () {
     Route::get('/', 'dashboard')->name('dashboard');
+    Route::get('/orders/export', 'exportOrders')->middleware('throttle:10,1')->name('orders.export');
     Route::put('/profile', 'updateProfile')->name('profile.update');
     Route::put('/password', 'updatePassword')->name('password.update');
     Route::post('/addresses', 'storeAddress')->name('addresses.store');
@@ -155,7 +158,7 @@ Route::middleware('auth')->prefix('account')->name('account.')->controller(Custo
 });
 
 // Staff Back-Office (/manage) — Role & Permission Protected in Backend
-Route::middleware('auth')->prefix('manage')->name('manage.')->group(function () {
+Route::middleware(['auth', 'verified'])->prefix('manage')->name('manage.')->group(function () {
     Route::controller(BackOfficeController::class)->group(function () {
         // Admin-only routes
         Route::get('/admin', 'adminDashboard')->middleware('role:admin')->name('admin');
@@ -166,7 +169,10 @@ Route::middleware('auth')->prefix('manage')->name('manage.')->group(function () 
         Route::get('/manager', 'managerDashboard')->middleware('role_or_permission:manager|coach|admin')->name('manager');
         Route::put('/users/{user}/status', 'toggleUserStatus')->middleware('permission:users.manage')->name('users.status.update');
         Route::post('/coach-assignments', 'assignCoach')->middleware('permission:coaching.subscriptions.manage')->name('coach-assignments.store');
+        Route::post('/coach-assignments/{assignment}/approve', 'approveAssignment')->middleware('role:admin')->name('coach-assignments.approve');
+        Route::post('/coach-assignments/{assignment}/reject', 'rejectAssignment')->middleware('role:admin')->name('coach-assignments.reject');
         Route::get('/clients/{client}/confidential', 'viewClientConfidential')->name('clients.confidential');
+        Route::get('/exports/{dataset}', 'exportCsv')->middleware('throttle:20,1')->name('exports.csv');
     });
 
     // Stage 3 Catalog, Inventory, Order, Payment, Refund & Review Operations

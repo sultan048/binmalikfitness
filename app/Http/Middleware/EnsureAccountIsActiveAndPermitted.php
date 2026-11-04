@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Domain\Platform\AuditLogger;
+use App\Support\Demo;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,8 +23,8 @@ class EnsureAccountIsActiveAndPermitted
             return $next($request);
         }
 
-        // Non-negotiable Rule #18: Demonstration users cannot authenticate in production
-        if (app()->isProduction() && $user->is_demo) {
+        // Non-negotiable Rule #18: Demonstration users cannot authenticate in production (or with demo mode off)
+        if ($user->is_demo && ! Demo::enabled()) {
             $this->audit->record('security.demo_account.blocked_in_production', $user, null, null, $user);
             Auth::logout();
             $request->session()->invalidate();
@@ -55,6 +56,21 @@ class EnsureAccountIsActiveAndPermitted
             && ! $request->routeIs('two-factor.challenge', 'two-factor.verify', 'logout')
         ) {
             return redirect()->route('two-factor.challenge');
+        }
+
+        // Staff must have 2FA active before using anything else (setup, verification and logout stay reachable)
+        if (
+            config('auth.require_staff_two_factor')
+            && ! $user->hasTwoFactorEnabled()
+            && $user->isPrivilegedStaff()
+            && ! $request->routeIs('two-factor.*', 'logout', 'verification.*')
+        ) {
+            if ($request->expectsJson()) {
+                abort(403, 'Two-factor authentication must be enabled for staff accounts.');
+            }
+
+            return redirect()->route('two-factor.setup')
+                ->with('status', 'Staff accounts must enable two-factor authentication before continuing.');
         }
 
         return $next($request);

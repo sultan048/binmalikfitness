@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Domain\Identity\TwoFactorTotpService;
 use App\Domain\Platform\AuditLogger;
 use App\Http\Controllers\Controller;
+use App\Support\Demo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -43,7 +44,7 @@ class TwoFactorController extends Controller
         return back()->with([
             'status' => 'Two-Factor Authentication secret generated. Enter the 6-digit verification code below to confirm.',
             'two_factor_setup_secret' => $secret,
-            'two_factor_sample_code' => app()->isProduction() ? null : $this->totp->currentCode($secret),
+            'two_factor_sample_code' => Demo::enabled() ? $this->totp->currentCode($secret) : null,
         ]);
     }
 
@@ -66,7 +67,52 @@ class TwoFactorController extends Controller
 
         $this->audit->record('auth.2fa.confirmed', $user, null, null, $user);
 
-        return back()->with('status', 'Two-Factor Authentication is now active on your account.');
+        // Recovery codes are shown once, right after activation; afterwards only their count is displayed.
+        return back()->with([
+            'status' => 'Two-Factor Authentication is now active. Save your recovery codes now; they will not be shown again.',
+            'two_factor_recovery_codes' => $user->two_factor_recovery_codes,
+        ]);
+    }
+
+    public function regenerateRecoveryCodes(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user->hasTwoFactorEnabled()) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Two-Factor Authentication is not active on this account.'],
+            ]);
+        }
+
+        if (! Hash::check($validated['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Current password does not match.'],
+            ]);
+        }
+
+        $codes = $this->totp->generateRecoveryCodes();
+        $user->update(['two_factor_recovery_codes' => $codes]);
+
+        $this->audit->record('auth.2fa.recovery_codes_regenerated', $user, null, null, $user);
+
+        return back()->with([
+            'status' => 'New recovery codes generated. Your previous codes no longer work. Save these now; they will not be shown again.',
+            'two_factor_recovery_codes' => $codes,
+        ]);
+    }
+
+    /**
+     * Stand-alone 2FA setup page; staff are sent here when 2FA is mandatory and not yet active.
+     */
+    public function showSetup(Request $request): View|RedirectResponse
+    {
+        return view('auth.two-factor-setup', [
+            'mandatory' => $request->user()->isPrivilegedStaff() && config('auth.require_staff_two_factor'),
+        ]);
     }
 
     public function disable(Request $request): RedirectResponse

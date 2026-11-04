@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Entitlement extends Model
 {
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_EXPIRED = 'expired';
+
     public const STATUS_REVOKED = 'revoked';
 
     protected $guarded = ['id'];

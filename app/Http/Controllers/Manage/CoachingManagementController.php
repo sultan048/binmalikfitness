@@ -10,7 +10,6 @@ use App\Models\CoachingCheckIn;
 use App\Models\CoachingConsultation;
 use App\Models\CoachingIntake;
 use App\Models\CoachingPackage;
-use App\Models\CoachingSubscription;
 use App\Models\DietPlan;
 use App\Models\PersonalisedPlanRequest;
 use App\Models\User;
@@ -239,7 +238,7 @@ class CoachingManagementController extends Controller
             'tagline' => ['required', 'string', 'max:190'],
         ]);
 
-        $slug = Str::slug($validated['name']).'-'. strtolower(Str::random(4));
+        $slug = Str::slug($validated['name']).'-'.strtolower(Str::random(4));
 
         $package = CoachingPackage::create([
             'name' => $validated['name'],

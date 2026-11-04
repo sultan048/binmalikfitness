@@ -5,16 +5,15 @@ namespace App\Http\Controllers\Auth;
 use App\Domain\Identity\RolePermissionMatrix;
 use App\Domain\Platform\AuditLogger;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RegisterUserRequest;
 use App\Models\ConsentRecord;
 use App\Models\CustomerProfile;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 
 class RegisteredUserController extends Controller
 {
@@ -22,15 +21,9 @@ class RegisteredUserController extends Controller
         private readonly AuditLogger $audit,
     ) {}
 
-    public function store(Request $request): RedirectResponse
+    public function store(RegisterUserRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:160', 'unique:users,email'],
-            'phone' => ['required', 'string', 'max:32', 'regex:/^[0-9+\-\s()]{10,20}$/'],
-            'password' => ['required', 'confirmed', Password::min(8)],
-            'terms' => ['accepted'],
-        ]);
+        $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated, $request) {
             $newUser = User::create([

@@ -70,7 +70,7 @@
                             </h3>
                         </div>
                         <a
-                            href="{{ route('orders.confirmation', ['orderNumber' => $order->order_number, 'token' => $order->access_token]) }}"
+                            href="{{ route('orders.confirmation', ['orderNumber' => $order->order_number]) }}"
                             class="btn-primary-light text-xs"
                         >
                             Open Full Order & Invoice →

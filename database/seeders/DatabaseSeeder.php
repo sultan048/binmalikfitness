@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\Demo;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -10,7 +11,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(RoleAndPermissionSeeder::class);
 
-        if (! app()->isProduction()) {
+        if (Demo::enabled()) {
             $this->call(DemoCatalogSeeder::class);
         }
     }

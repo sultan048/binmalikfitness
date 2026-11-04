@@ -47,14 +47,9 @@
 >
     <section
         class="surface-shop bg-paper text-graphite py-12"
-        x-data="{
-            variants: {{ Js::from($variantsJson) }},
-            selectedId: {{ $defaultVariant?->id ?? 'null' }},
-            qty: 1,
-            get current() {
-                return this.variants.find(v => v.id === Number(this.selectedId)) || this.variants[0] || {};
-            }
-        }"
+        x-data="productVariants"
+        data-variants="{{ json_encode($variantsJson) }}"
+        data-selected="{{ $defaultVariant?->id }}"
     >
         <div class="container-site space-y-12">
             <!-- Breadcrumb -->
@@ -199,14 +194,14 @@
                                         name="quantity"
                                         x-model="qty"
                                         min="1"
-                                        :max="Math.max(1, current.available)"
+                                        :max="maxQty"
                                         class="field-input"
                                     />
                                 </div>
                                 <div class="flex-1 min-w-[200px]">
                                     <button
                                         type="submit"
-                                        :disabled="current.available <= 0"
+                                        :disabled="soldOut"
                                         class="btn-primary-light w-full py-3 text-xs cursor-pointer disabled:opacity-50"
                                     >
                                         Add Selected Variant to Cart

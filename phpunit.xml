@@ -19,6 +19,10 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="DEMO_MODE" value="true"/>
+        <env name="REQUIRE_STAFF_2FA" value="false"/>
+        <env name="SESSION_SECURE_COOKIE" value="false"/>
+        <env name="ERROR_ALERT_EMAIL" value=""/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
