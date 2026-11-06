@@ -6,6 +6,9 @@ Checklist for a cPanel host. Work through it top to bottom on first deploy; the 
 
 - [ ] **PHP 8.3 or newer is available.** In cPanel open *MultiPHP Manager* and pick 8.3 (or 8.4) for the domain. `composer.lock` is resolved for PHP 8.3 (`config.platform.php`), so 8.3 and 8.4 both work; 8.2 or older will not start.
 - [ ] PHP extensions enabled (cPanel → *Select PHP Version* → Extensions): `bcmath ctype curl fileinfo gd intl mbstring openssl pdo_mysql tokenizer xml zip sodium`.
+  - `fileinfo` is optional here: if the host does not ship it, `bootstrap/fileinfo-fallback.php` (loaded by Composer) provides a magic-byte replacement for the formats the app accepts (JPEG, PNG, WebP, PDF). It switches itself off when the real extension exists.
+  - `intl` and `sodium` are not required by the locked packages or the app code.
+- [ ] If `composer` is not installed and `allow_url_fopen` is off in the CLI, install it with `curl -sS https://getcomposer.org/installer | ea-php83 -d allow_url_fopen=On -- --install-dir=$HOME --filename=composer.phar` and run `COMPOSER_MEMORY_LIMIT=-1 ea-php83 -d allow_url_fopen=On ~/composer.phar install --no-dev --optimize-autoloader`.
 - [ ] SSH or Terminal access (cPanel → *Terminal*). Composer is usually available as `composer`; if not, use `php composer.phar`.
 - [ ] A MySQL database and user (cPanel → *MySQL Databases*) with ALL PRIVILEGES on the database.
 - [ ] The mailbox `no-reply@binmalikfitness.com` exists (cPanel → *Email Accounts*). Used for password-reset, verification, order and alert e-mails.
