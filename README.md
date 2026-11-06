@@ -4,7 +4,7 @@
 **Domain:** `https://binmalikfitness.com`
 **Primary market:** Pakistan (`PKR`)
 **Architecture:** Laravel 13 modular monolith + MySQL/MariaDB + Blade + Tailwind CSS v4 + Alpine.js
-**Requires:** PHP **8.4.1+** (locked dependencies), Node 20+ for building assets
+**Requires:** PHP **8.3+** (the lock file is resolved for PHP 8.3, so the same code runs on 8.3 and 8.4), Node 20+ for building assets
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## 2. Local development (Windows + XAMPP)
 
-XAMPP ships PHP 8.2, which is too old. Install PHP 8.4 next to it (for example in `C:\xampp\php84`) and use that binary for everything below.
+XAMPP ships PHP 8.2, which is too old. Install PHP 8.3 or 8.4 next to it (for example in `C:\xampp\php84`) and use that binary for everything below.
 
 1. Copy `.env.example` to `.env`, then switch it to local values: `APP_ENV=local`, `APP_DEBUG=true`, `APP_URL=http://127.0.0.1:8000`, `DEMO_MODE=true`, `SESSION_SECURE_COOKIE=false`, and your local MySQL credentials (databases `binmalikfitness` and `binmalikfitness_test`).
 2. Install dependencies:
@@ -48,7 +48,7 @@ With `DEMO_MODE=true` a role-switcher bar (admin / manager / coach / customer de
 
 ## 3. Production (cPanel)
 
-Follow [`docs/DEPLOYMENT-CPANEL.md`](docs/DEPLOYMENT-CPANEL.md). In short: PHP 8.4, document root = `public/`, production `.env` from `.env.example`, `php artisan migrate --force && php artisan optimize`, and one cron entry for `php artisan schedule:run`.
+Follow [`docs/DEPLOYMENT-CPANEL.md`](docs/DEPLOYMENT-CPANEL.md). In short: PHP 8.3 or 8.4, document root = `public/`, production `.env` from `.env.example`, `php artisan migrate --force && php artisan optimize`, and one cron entry for `php artisan schedule:run`.
 
 ---
 

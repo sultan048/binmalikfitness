@@ -4,7 +4,7 @@ Checklist for a cPanel host. Work through it top to bottom on first deploy; the 
 
 ## 1. Before you start
 
-- [ ] **PHP 8.4 or newer is available.** In cPanel open *MultiPHP Manager* and confirm 8.4 is listed. The locked dependencies (Laravel 13) need **PHP ≥ 8.4.1**; on an older PHP the site will not start.
+- [ ] **PHP 8.3 or newer is available.** In cPanel open *MultiPHP Manager* and pick 8.3 (or 8.4) for the domain. `composer.lock` is resolved for PHP 8.3 (`config.platform.php`), so 8.3 and 8.4 both work; 8.2 or older will not start.
 - [ ] PHP extensions enabled (cPanel → *Select PHP Version* → Extensions): `bcmath ctype curl fileinfo gd intl mbstring openssl pdo_mysql tokenizer xml zip sodium`.
 - [ ] SSH or Terminal access (cPanel → *Terminal*). Composer is usually available as `composer`; if not, use `php composer.phar`.
 - [ ] A MySQL database and user (cPanel → *MySQL Databases*) with ALL PRIVILEGES on the database.
@@ -88,7 +88,7 @@ The scheduler then runs, on its own timetable:
 - `backup:run` daily at 02:30 (database dump + private uploads, kept `BACKUP_KEEP_DAYS` days, in `storage/app/backups`)
 - `security:prune` daily (expired idempotency keys, password-reset tokens, old audit logs)
 
-If `php` on the cron path is not 8.4, use the full path cPanel shows in *MultiPHP Manager*, e.g. `/opt/cpanel/ea-php84/root/usr/bin/php`.
+The `php` on the cron path may be older than 8.3 (shared hosts often default to 8.2). Use the version shortcut or full path instead, e.g. `ea-php83` or `/opt/cpanel/ea-php83/root/usr/bin/php`. In Terminal run the same way: `ea-php83 artisan ...`, `ea-php83 ~/composer.phar ...`.
 
 Download a backup off the server regularly (cPanel *File Manager* → `storage/app/backups`), or enable the host's own backup service as well.
 
