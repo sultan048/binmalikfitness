@@ -119,11 +119,12 @@ return [
     | Mandatory Two-Factor Authentication for Staff
     |--------------------------------------------------------------------------
     |
-    | When enabled, admin, manager and coach accounts are redirected to the 2FA
-    | setup page until 2FA is confirmed. On by default in production.
+    | Optional by default: each staff member chooses whether to enable 2FA from
+    | their security settings. Set REQUIRE_STAFF_2FA=true to force admin, manager
+    | and coach accounts to the 2FA setup page until 2FA is confirmed.
     |
     */
 
-    'require_staff_two_factor' => (bool) env('REQUIRE_STAFF_2FA', env('APP_ENV') === 'production'),
+    'require_staff_two_factor' => (bool) env('REQUIRE_STAFF_2FA', false),
 
 ];

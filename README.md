@@ -61,7 +61,7 @@ Defined in [`App\Domain\Identity\RolePermissionMatrix`](app/Domain/Identity/Role
 - **`coach` (internal capability role):** delivers training/nutrition to assigned clients only (scoped by approved `coach_assignments`).
 - **`customer` (member / buyer):** self-service portal for orders, coaching check-ins, entitled diet/workout plans, entitled videos and gym membership.
 
-Staff accounts must enable two-factor authentication when `REQUIRE_STAFF_2FA=true` (default in production). Customers must verify their e-mail address before using the account area.
+Two-factor authentication is optional for staff by default; each staff member can enable it from their security settings. Set `REQUIRE_STAFF_2FA=true` to make it compulsory for staff accounts. Customers must verify their e-mail address before using the account area.
 
 ---
 
